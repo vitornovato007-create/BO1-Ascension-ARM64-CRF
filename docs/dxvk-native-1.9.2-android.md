@@ -67,7 +67,7 @@ Nenhum workflow foi executado nesta alteração e nenhum APK foi produzido ou te
 
 ## Compilação pelo GitHub Actions
 
-Foi adicionado o workflow manual `.github/workflows/android.yml`. Na branch `crf/dxvk-legacy-audit`:
+Foi adicionado o workflow manual `.github/workflows/android.yml` tanto à branch de trabalho quanto à branch padrão `main` (necessário para o GitHub habilitar `workflow_dispatch`). Na aba Actions, selecione o workflow e, no campo de branch, escolha `crf/dxvk-legacy-audit`:
 
 1. Abra a aba **Actions** do repositório.
 2. Selecione **Build Android APK (DXVK Native 1.9.2)**.
