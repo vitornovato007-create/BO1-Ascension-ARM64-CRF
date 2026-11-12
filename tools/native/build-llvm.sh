@@ -51,6 +51,6 @@ cmake -S "$SRC/llvm" -B "$BUILD" -G Ninja \
 echo "== Compile patched Clang (live Ninja progress; log: $L/build.log) =="
 ninja -C "$BUILD" -j "${JOBS:-4}" clang clang-resource-headers 2>&1 | tee "$L/build.log"
 
-"$BUILD/bin/clang" --version | head -n 1
+"$BUILD/bin/clang" --version | sed -n '1p'
 touch "$L/.bo1-build-complete"
 echo "== Patched LLVM build completed and is ready for cache =="
