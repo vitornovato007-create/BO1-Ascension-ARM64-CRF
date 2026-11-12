@@ -121,3 +121,18 @@ Isso confirma que o bloqueio não é apenas uma opção Meson com nome diferente
 Não adicionar ainda um seletor de versão nem empacotar uma biblioteca fictícia. Um seletor só seria funcional depois de existir uma segunda biblioteca ARM64 real, com ABI Native D3D9 compatível e teste de criação/apresentação de dispositivo. A próxima implementação deve ser um port/backport isolado da camada Native/SDL2 para a base 1.10.3, com patches específicos e validação de dependências. O caminho 2.6.1 permanece intacto como fallback.
 
 Esta verificação foi somente leitura: nenhum workflow foi executado e nenhum APK foi produzido.
+
+
+## Referência Native localizada (correção da investigação)
+
+Na continuação da investigação foi localizado o fork público `q4a/dxvk-native` (também espelhado em `misyltoad/dxvk-native`). Ele contém exatamente os componentes Native que o BO1 espera: `include/native/directx`, `include/native/windows`, `include/native/wsi/native_sdl2.h` e `src/wsi/sdl2`. Portanto, a formulação correta não é que não exista código Native reutilizável: existe uma implementação de referência.
+
+**Limitação decisiva:** o `meson.build` desse fork declara versão `v1.9.2`, não `v1.10.3`. O repositório pode servir como referência para o backport, mas não deve ser usado como se fosse DXVK 1.10.3. Também não foi encontrada evidência de que seu commit atual corresponda ao tag upstream 1.10.3.
+
+Referência consultada: `q4a/dxvk-native`, branch `master`, commit mais recente observado `dedfa1877afb9b9d30aaaa5935d56238ae12bb8b`; base de versão declarada no Meson: `v1.9.2`.
+
+### Consequência prática
+
+O caminho tecnicamente correto é usar a árvore Native v1.9.2 como referência de integração e portar os deltas necessários para a árvore upstream v1.10.3. Isso envolve comparar os arquivos Native e seus pontos de integração com os arquivos equivalentes do tag 1.10.3, resolver conflitos de API/estrutura e então criar um patchset versionado. Não é seguro copiar apenas os diretórios `include/native` e `src/wsi`: os pontos de integração também incluem código de DXGI, Vulkan, D3D9 e utilitários, além de opções e dependências do Meson.
+
+Nenhum código de runtime foi alterado nesta etapa porque ainda não há um patchset reconciliado ou build validado. O próximo commit de código deve conter o backport real e verificável, não apenas trocar a URL do clone.
