@@ -64,3 +64,16 @@ O script prepara somente o alvo Android ARM64 para este primeiro teste. Não adi
 - teste real no Galaxy S10 registra FPS, frame time, estabilidade e artefatos na mesma cena/resolução usada com 2.6.1.
 
 Nenhum workflow foi executado nesta alteração e nenhum APK foi produzido ou testado.
+
+## Compilação pelo GitHub Actions
+
+Foi adicionado o workflow manual `.github/workflows/android.yml`. Na branch `crf/dxvk-legacy-audit`:
+
+1. Abra a aba **Actions** do repositório.
+2. Selecione **Build Android APK (DXVK Native 1.9.2)**.
+3. Clique em **Run workflow** e confirme a branch `crf/dxvk-legacy-audit`.
+4. Aguarde o job terminar. O APK aparecerá em **Artifacts** com o nome `bo1-android-arm64-dxvk-native-1.9.2`; os logs ficam em um segundo artifact.
+
+O workflow executa a sequência necessária para resolver a dependência circular entre SDL2 e DXVK Native: primeiro gera SDL2 com uma configuração temporária do engine sem DXVK, depois compila DXVK Native 1.9.2, regenera/reconfigura o engine com os headers 1.9.2 e finalmente empacota o APK. O APK só é enviado se existir e não estiver vazio.
+
+O workflow foi adicionado, mas **não foi executado nesta alteração**. A primeira execução é também o primeiro teste real do script Meson/cross-compilation em runner limpo; se houver incompatibilidade de opção, dependência ou limite de espaço/tempo do runner, os logs serão necessários para corrigir.
