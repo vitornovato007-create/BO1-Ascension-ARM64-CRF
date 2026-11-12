@@ -7,8 +7,8 @@
 # RELEASE_PASS_FILE give /bo1/android/out/bo1-port-<versionName>.apk. Keep the keystore out of the repository: every
 # update has to be signed with the same key, or Android refuses to install it over the previous one.
 A=/bo1/android
-# DXVK_DIR selects the source/build tree whose libdxvk_d3d9.so is packaged. Default remains the existing 2.6.1 tree.
-DXVK_DIR=${DXVK_DIR:-/bo1/dxvk}
+# DXVK_DIR selects the source/build tree whose libdxvk_d3d9.so is packaged. Prefer 1.9.2 once built; otherwise retain 2.6.1.
+DXVK_DIR=${DXVK_DIR:-$(if [ -f /bo1/dxvk-native-1.9.2/build-android-arm64-v8a/src/d3d9/libdxvk_d3d9.so ]; then echo /bo1/dxvk-native-1.9.2; else echo /bo1/dxvk; fi)}
 SDK=$A/sdk; BT=$SDK/build-tools/35.0.0; JAR=$SDK/platforms/android-35/android.jar
 SRC=/bo1/src/android
 NB=/bo1/p32tree/build/android/bin
