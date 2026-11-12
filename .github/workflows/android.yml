@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      JOBS: "2"
+      JOBS: "4"
       BUILD_TYPE: ${{ inputs.build_type }}
     steps:
       - name: Checkout selected branch
@@ -37,18 +37,29 @@ jobs:
           echo "Branch/ref: $GITHUB_REF"
           echo "Commit: $GITHUB_SHA"
           echo "DXVK candidate: q4a/dxvk-native v1.9.2"
+          echo "Ninja jobs: $JOBS"
           df -h
 
       - name: Build Docker toolchain
         run: docker build --pull -t bo1-android-builder -f tools/native/docker/Dockerfile tools/native/docker
 
+      - name: Restore LLVM build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/bo1-work/llvm
+          key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch', 'tools/native/docker/Dockerfile') }}
+          restore-keys: |
+            llvm-21.1.8-ubuntu24-
+
       - name: Build engine and APK
+        id: build
         shell: bash
         run: |
           set -Eeuo pipefail
           WORK="$RUNNER_TEMP/bo1-work"
           mkdir -p "$WORK"
 
+          set +e
           docker run --rm --name bo1-android-build \
             -e JOBS="$JOBS" \
             -e BUILD_TYPE="$BUILD_TYPE" \
@@ -93,6 +104,20 @@ jobs:
               ls -lh /bo1/android/out/bo1-zombies-debug.apk
               sha256sum /bo1/android/out/bo1-zombies-debug.apk
             '
+          BUILD_STATUS=$?
+          set -e
+
+          if [[ -f "$WORK/llvm/.bo1-build-complete" ]]; then
+            echo "llvm_cache_ready=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$BUILD_STATUS"
+
+      - name: Save completed LLVM build cache
+        if: always() && steps.build.outputs.llvm_cache_ready == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/bo1-work/llvm
+          key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch', 'tools/native/docker/Dockerfile') }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
