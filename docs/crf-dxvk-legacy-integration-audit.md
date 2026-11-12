@@ -104,3 +104,20 @@ Do not assume that the Sarek Windows DLLs can be renamed to `.so`, nor that a Bo
 - No performance claim is made for DXVK 1.10.3 or Sarek on the Mali-G76.
 - No current runtime source or build script was modified in this audit branch.
 - Preserve the 2.6.1 baseline and test the candidate in isolation.
+
+
+## Verificação adicional do tag upstream v1.10.3
+
+A árvore Git do tag upstream `v1.10.3` foi consultada diretamente (tag object resolvido para commit `57740c6ac9c62f3f26c4b5237d7edf3c40797941`). A árvore contém os diretórios clássicos `src/d3d9`, `src/dxgi`, `src/dxvk` e os arquivos Meson, mas **não contém**:
+
+- `include/native/directx` ou `include/native/windows`;
+- `src/wsi/sdl2`;
+- uma implementação Native WSI selecionável pelo build atual.
+
+Isso confirma que o bloqueio não é apenas uma opção Meson com nome diferente: a interface Native usada pelo fork atual não existe nesse tag. O código atual de `bo1vk_dxvk.cpp` inclui `d3d9.h` do conjunto de headers Native e espera um `.so` exportando `Direct3DCreate9` com a janela SDL2 tratada pelo backend Native. A versão 1.10.3 upstream, sozinha, não satisfaz esse contrato.
+
+### Decisão de engenharia para a próxima etapa
+
+Não adicionar ainda um seletor de versão nem empacotar uma biblioteca fictícia. Um seletor só seria funcional depois de existir uma segunda biblioteca ARM64 real, com ABI Native D3D9 compatível e teste de criação/apresentação de dispositivo. A próxima implementação deve ser um port/backport isolado da camada Native/SDL2 para a base 1.10.3, com patches específicos e validação de dependências. O caminho 2.6.1 permanece intacto como fallback.
+
+Esta verificação foi somente leitura: nenhum workflow foi executado e nenhum APK foi produzido.
