@@ -22,6 +22,16 @@ if [ ! -d "$D/src/.git" ]; then
 fi
 git -C "$D/src" fetch --depth 1 origin "$COMMIT" || exit 1
 git -C "$D/src" checkout --detach "$COMMIT" || exit 1
+# DXVK Native keeps the Direct3D headers in a required Git submodule.
+# A plain clone does not populate it, which leaves d3d9.h missing at compile time.
+git -C "$D/src" submodule sync -- include/native/directx
+git -C "$D/src" submodule update --init --depth 1 include/native/directx || exit 1
+[ -f "$D/src/include/native/directx/d3d9.h" ] || {
+  echo "ERROR: DirectX headers submodule is missing d3d9.h"
+  git -C "$D/src" submodule status -- include/native/directx
+  exit 1
+}
+echo "DirectX headers ready: $D/src/include/native/directx/d3d9.h"
 
 if [ "$TARGET" = linux ]; then
   B=$D/build-linux
