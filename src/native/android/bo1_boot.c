@@ -317,6 +317,8 @@ int SDL_main(int argc, char **argv)
             refresh = atoi(argv[i] + 10);
         else if (!strncmp(argv[i], "--rates=", 8))
             setenv("BO1_REFRESH_RATES", argv[i] + 8, 1);   // the engine's list of refresh rates (d3d9_direct3d.cpp)
+        else if (!strncmp(argv[i], "--dxvk=", 7))
+            setenv("BO1_DXVK_RENDERER", argv[i] + 7, 1);
         else
             engineArgv[engineArgc++] = argv[i];
     }
