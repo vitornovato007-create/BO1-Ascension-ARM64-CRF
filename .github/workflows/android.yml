@@ -67,35 +67,38 @@ jobs:
               set -Eeuo pipefail
               S=/bo1/src/tools/native
 
+              # Invoke every repository shell script through Bash. The source tree
+              # intentionally contains scripts with mode 100644, so direct execution
+              # would fail with "Permission denied" on a clean Git checkout.
               echo "== NDK and patched LLVM =="
-              "$S/get-ndk.sh"
-              "$S/build-llvm.sh"
+              bash "$S/get-ndk.sh"
+              bash "$S/build-llvm.sh"
 
               echo "== Android SDK, SDL2 source and FFmpeg =="
               bash "$S/android-setup.sh"
-              "$S/build-ffmpeg.sh" linux
-              "$S/build-ffmpeg.sh" arm64-v8a
+              bash "$S/build-ffmpeg.sh" linux
+              bash "$S/build-ffmpeg.sh" arm64-v8a
 
               echo "== Generate the 32-bit-pointer source tree (first pass without DXVK) =="
-              "$S/build-p32.sh"
+              bash "$S/build-p32.sh"
 
               echo "== Build SDL2 and Android engine prerequisites =="
-              DXVK= "$S/build-android.sh"
+              DXVK= bash "$S/build-android.sh"
 
               echo "== Build DXVK Native 1.9.2 for Android ARM64 =="
-              "$S/build-dxvk-native-1.9.2.sh" arm64-v8a
+              bash "$S/build-dxvk-native-1.9.2.sh" arm64-v8a
 
               echo "== Regenerate/reconfigure engine against matching Native 1.9.2 headers =="
               rm -rf /bo1/src/build/native-x64
               rm -rf /bo1/p32tree/build/x64 /bo1/p32tree/build/android
-              DXVK=/bo1/dxvk-native-1.9.2/src "$S/build-p32.sh"
+              DXVK=/bo1/dxvk-native-1.9.2/src bash "$S/build-p32.sh"
 
               echo "== Build Android engine with DXVK Native 1.9.2 =="
               rm -rf /bo1/p32tree/build/android
-              DXVK=/bo1/dxvk-native-1.9.2/src "$S/build-android.sh"
+              DXVK=/bo1/dxvk-native-1.9.2/src bash "$S/build-android.sh"
 
               echo "== Package APK with DXVK Native 1.9.2 =="
-              DXVK_DIR=/bo1/dxvk-native-1.9.2 "$S/build-apk.sh"
+              DXVK_DIR=/bo1/dxvk-native-1.9.2 bash "$S/build-apk.sh"
 
               test -s /bo1/android/out/bo1-zombies-debug.apk
               echo "APK generated:"
