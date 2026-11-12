@@ -25,9 +25,11 @@ git -C "$D/src" checkout --detach "$COMMIT" || exit 1
 
 if [ "$TARGET" = linux ]; then
   B=$D/build-linux
-  meson setup "$B" "$D/src" --buildtype release \
-    -Denable_d3d9=true -Denable_dxgi=false -Denable_d3d10=false -Denable_d3d11=false \
-    -Ddxvk_native_force=true -Ddxvk_native_wsi=sdl2
+  if [ ! -f "$B/build.ninja" ]; then
+    meson setup "$B" "$D/src" --buildtype release \
+      -Denable_d3d9=true -Denable_dxgi=false -Denable_d3d10=false -Denable_d3d11=false \
+      -Ddxvk_native_force=true -Ddxvk_native_wsi=sdl2
+  fi
 else
   if [ "$TARGET" = x86_64 ]; then
     TRIPLE=x86_64-linux-android$API; FAMILY=x86_64; SDLDIR=$A/sdl-x86_64
@@ -77,9 +79,11 @@ cpu_family = '$FAMILY'
 cpu = '$FAMILY'
 endian = 'little'
 EOF
-  meson setup "$B" "$D/src" --cross-file "$PC/cross.txt" --buildtype release \
-    -Denable_d3d9=true -Denable_dxgi=false -Denable_d3d10=false -Denable_d3d11=false \
-    -Ddxvk_native_force=true -Ddxvk_native_wsi=sdl2
+  if [ ! -f "$B/build.ninja" ]; then
+    meson setup "$B" "$D/src" --cross-file "$PC/cross.txt" --buildtype release \
+      -Denable_d3d9=true -Denable_dxgi=false -Denable_d3d10=false -Denable_d3d11=false \
+      -Ddxvk_native_force=true -Ddxvk_native_wsi=sdl2
+  fi
 fi
 
 nice -n 19 ionice -c3 ninja -C "$B" -j "${JOBS:-6}" -k 0 src/d3d9/libdxvk_d3d9.so
