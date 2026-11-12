@@ -138,3 +138,9 @@ tools/native/build-apk.sh        # the APK (RELEASE_KEYSTORE=... for a release-s
 - The game's own files are never in this repository or the app: `setup.ps1` copies them from your install on
   Windows, the Android app reads the copy you put on the device, and the browser version reads them from your
   computer.
+
+## Android DXVK Manager (experimental)
+
+In the experimental Android build, hold the device's **Volume Down** button while the game is running to open the DXVK Manager. The first selectable backend is DXVK Native 1.9.2 (Vulkan); the second is the OpenGL ES compatibility renderer. Changing the selection saves it in Android app preferences and restarts the game so the native renderer is initialized cleanly.
+
+Only backends actually packaged in the APK are shown. DXVK 1.10.3 and DXVK Sarek 1.11.1 are **not available yet**: both still require a verified Android/DXVK-Native port and separate ARM64 builds. They are intentionally not presented as selectable options until that work is complete. The manager does not promise a performance improvement; compare both available renderers in the same map and graphics settings.
