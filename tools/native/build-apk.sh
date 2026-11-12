@@ -7,6 +7,8 @@
 # RELEASE_PASS_FILE give /bo1/android/out/bo1-port-<versionName>.apk. Keep the keystore out of the repository: every
 # update has to be signed with the same key, or Android refuses to install it over the previous one.
 A=/bo1/android
+# DXVK_DIR selects the source/build tree whose libdxvk_d3d9.so is packaged. Default remains the existing 2.6.1 tree.
+DXVK_DIR=${DXVK_DIR:-/bo1/dxvk}
 SDK=$A/sdk; BT=$SDK/build-tools/35.0.0; JAR=$SDK/platforms/android-35/android.jar
 SRC=/bo1/src/android
 NB=/bo1/p32tree/build/android/bin
@@ -53,7 +55,7 @@ L=$W/assets/licenses; mkdir -p $L
 cp /bo1/src/NOTICE.md /bo1/src/THIRD_PARTY_NOTICES.md $L/ || exit 1
 cp /bo1/src/third_party/mojoshader/LICENSE.txt $L/mojoshader.txt; cp /bo1/src/third_party/sse2neon/LICENSE $L/sse2neon.txt
 cp /bo1/src/src/libs/libtommath-1.0/LICENSE $L/libtommath.txt; cp /bo1/src/src/jpeg/README $L/libjpeg.txt
-for f in /bo1/dxvk/src/LICENSE:dxvk.txt $A/SDL2/LICENSE.txt:sdl2.txt /bo1/ffmpeg/src/COPYING.LGPLv2.1:ffmpeg-lgpl-2.1.txt; do
+for f in $DXVK_DIR/src/LICENSE:dxvk.txt $A/SDL2/LICENSE.txt:sdl2.txt /bo1/ffmpeg/src/COPYING.LGPLv2.1:ffmpeg-lgpl-2.1.txt; do
   cp ${f%%:*} $L/${f##*:} || exit 1
 done
 $BT/aapt2 link -o $W/base.apk --manifest $MANIFEST -I $JAR $RES -A $W/assets > $W/aapt2.log 2>&1 || { tail -20 $W/aapt2.log; exit 1; }
@@ -62,14 +64,14 @@ $BT/aapt2 link -o $W/base.apk --manifest $MANIFEST -I $JAR $RES -A $W/assets > $
 for lib in libbo1.so libmain.so; do $NDK/bin/llvm-strip --strip-unneeded -o $W/pkg/lib/arm64-v8a/$lib $NB/$lib || exit 1; done
 $NDK/bin/llvm-strip --strip-unneeded -o $W/pkg/lib/arm64-v8a/libSDL2.so $A/sdl/lib/libSDL2.so || exit 1
 # the Vulkan renderer: DXVK (build-dxvk.sh), when it was built
-DX=/bo1/dxvk/build-android-arm64-v8a/src/d3d9/libdxvk_d3d9.so
+DX=$DXVK_DIR/build-android-arm64-v8a/src/d3d9/libdxvk_d3d9.so
 [ -f $DX ] && { $NDK/bin/llvm-strip --strip-unneeded -o $W/pkg/lib/arm64-v8a/libdxvk_d3d9.so $DX || exit 1; }
 # X86=1: also the x86_64 build (ABI=x86_64 build-android.sh), for the emulator
 if [ "${X86:-0}" = 1 ]; then
   XB=/bo1/p32tree/build/android-x86_64/bin; mkdir -p $W/pkg/lib/x86_64
   for lib in libbo1.so libmain.so; do $NDK/bin/llvm-strip --strip-unneeded -o $W/pkg/lib/x86_64/$lib $XB/$lib || exit 1; done
   $NDK/bin/llvm-strip --strip-unneeded -o $W/pkg/lib/x86_64/libSDL2.so $A/sdl-x86_64/lib/libSDL2.so || exit 1
-  DX=/bo1/dxvk/build-android-x86_64/src/d3d9/libdxvk_d3d9.so
+  DX=$DXVK_DIR/build-android-x86_64/src/d3d9/libdxvk_d3d9.so
   [ -f $DX ] && { $NDK/bin/llvm-strip --strip-unneeded -o $W/pkg/lib/x86_64/libdxvk_d3d9.so $DX || exit 1; }
 fi
 cp $W/dex/classes.dex $W/pkg/
