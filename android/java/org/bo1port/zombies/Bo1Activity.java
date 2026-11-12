@@ -3,6 +3,11 @@ package org.bo1port.zombies;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.Display;
+import android.view.KeyEvent;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
+import android.widget.Toast;
 import android.view.WindowManager;
 
 import java.io.File;
@@ -61,7 +66,9 @@ public class Bo1Activity extends SDLActivity {
         } catch (Throwable ignored) {
             // 60
         }
-        return new String[] { "--refresh=" + refresh, "--rates=" + supportedRates() };
+        SharedPreferences prefs = getSharedPreferences("dxvk_manager", MODE_PRIVATE);
+        String renderer = prefs.getString("renderer", "dxvk-native-1.9.2");
+        return new String[] { "--refresh=" + refresh, "--rates=" + supportedRates(), "--dxvk=" + renderer };
     }
 
     /** The display's refresh rates at the current resolution, ascending: "60,90,120". */
