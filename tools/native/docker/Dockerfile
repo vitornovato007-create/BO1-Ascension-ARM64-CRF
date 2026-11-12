@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/trixie/ llvm-toolchain-trixie-21 main" \
        > /etc/apt/sources.list.d/llvm21.list \
     && apt-get update && apt-get install -y --no-install-recommends \
-      git cmake ninja-build make meson pkg-config python3 file less procps util-linux rsync wget unzip zip xz-utils \
+      git cmake ninja-build make patch meson pkg-config python3 file less procps util-linux rsync wget unzip zip xz-utils \
       p7zip-full e2fsprogs erofs-utils glslang-tools \
       clang-21 lld-21 llvm-21-dev libclang-21-dev libclang-cpp21-dev libc++-21-dev libc++abi-21-dev libunwind-21-dev \
       clang lld llvm libc6-dev \
