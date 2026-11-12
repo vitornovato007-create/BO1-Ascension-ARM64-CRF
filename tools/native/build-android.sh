@@ -12,7 +12,7 @@ API=26
 A=/bo1/android
 ABI=${ABI:-arm64-v8a}
 # the Vulkan renderer's bridge needs DXVK's headers (build-dxvk.sh builds the library the APK carries)
-DXVK=${DXVK-$([ -d /bo1/dxvk/src/include/native ] && echo /bo1/dxvk/src)}
+DXVK=${DXVK-$([ -d /bo1/dxvk-native-1.9.2/src/include/native ] && echo /bo1/dxvk-native-1.9.2/src || ([ -d /bo1/dxvk/src/include/native ] && echo /bo1/dxvk/src))}
 if [ "$ABI" = x86_64 ]; then
   FFMPEG=${FFMPEG-$([ -f /bo1/ffmpeg/android-x86_64/lib/libavcodec.a ] && echo /bo1/ffmpeg/android-x86_64)}
   TRIPLE=x86_64-linux-android$API; ARCH=x64; PROCESSOR=x86_64; SDLDIR=$A/sdl-x86_64; SDLBUILD=$A/sdl-build-x86_64; B=build/android-x86_64
