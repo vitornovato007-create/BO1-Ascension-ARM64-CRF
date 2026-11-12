@@ -220,6 +220,14 @@ extern "C" int bo1vk_available(void)
     if (s_tried)
         return s_create != nullptr;
     s_tried = true;
+    const char *renderer = getenv("BO1_DXVK_RENDERER");
+    if (renderer && !strcmp(renderer, "gles"))
+    {
+        fprintf(stderr, "vulkan: DXVK Manager selected OpenGL ES compatibility renderer\\n");
+        return 0;
+    }
+    if (renderer && strcmp(renderer, "dxvk-native-1.9.2") != 0)
+        fprintf(stderr, "vulkan: unknown DXVK Manager selection '%s'; using DXVK Native 1.9.2\\n", renderer);
     // DXVK's window system for a native build; SDL2 is what native_video.cpp makes the window with
     setenv("DXVK_WSI_DRIVER", "SDL2", 0);
     // DXVK's log goes to stderr only (the program's log); by default it would also write <program>_d3d9.log into the
