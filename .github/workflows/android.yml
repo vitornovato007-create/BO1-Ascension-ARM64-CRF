@@ -48,8 +48,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/bo1-work/llvm
           key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch', 'tools/native/docker/Dockerfile') }}
-          restore-keys: |
-            llvm-21.1.8-ubuntu24-
 
       - name: Build engine and APK
         id: build
