@@ -8,6 +8,9 @@ DXVK=${DXVK-$([ -d /bo1/dxvk/src/include/native ] && echo /bo1/dxvk/src)}
 # FFMPEG=<FFmpeg build> adds the xWMA sounds (default /bo1/ffmpeg/linux when it exists, build-ffmpeg.sh)
 FFMPEG=${FFMPEG-$([ -f /bo1/ffmpeg/linux/lib/libavcodec.a ] && echo /bo1/ffmpeg/linux)}
 DB=build/native-x64
+# The configure log is redirected before CMake starts, so its parent directory
+# must exist before the shell opens the redirection target.
+mkdir -p "$(dirname "$DB")" "$DB"
 if [ "${REGEN:-1}" = 1 ]; then
   [ -f $DB/compile_commands.json ] || cmake -S . -B $DB -G Ninja -DBO1_NATIVE=ON -DBO1_NATIVE_ARCH=x64 -DBO1_NATIVE_DXVK=$DXVK -DBO1_NATIVE_FFMPEG=$FFMPEG -DCMAKE_C_COMPILER=clang-21 -DCMAKE_CXX_COMPILER=clang++-21 -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > $DB.configure.log 2>&1
   [ -x $DB/p32rewrite ] && [ $DB/p32rewrite -nt tools/p32/p32rewrite.cpp ] || clang++-21 -std=c++17 -O1 -fno-rtti tools/p32/p32rewrite.cpp -o $DB/p32rewrite $(llvm-config-21 --cxxflags | sed "s/-std=[^ ]*//") -I/usr/lib/llvm-21/include -L/usr/lib/llvm-21/lib -lclang-cpp -lLLVM-21 || exit 1
