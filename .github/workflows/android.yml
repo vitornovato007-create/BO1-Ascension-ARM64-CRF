@@ -1,0 +1,114 @@
+name: Build Android APK (DXVK Native 1.9.2)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build configuration"
+        required: true
+        type: choice
+        options:
+          - Release
+        default: Release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-android:
+    name: Build ARM64 APK with DXVK Native 1.9.2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      JOBS: "2"
+      BUILD_TYPE: ${{ inputs.build_type }}
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Show build target
+        run: |
+          echo "Branch/ref: $GITHUB_REF"
+          echo "Commit: $GITHUB_SHA"
+          echo "DXVK candidate: q4a/dxvk-native v1.9.2"
+          df -h
+
+      - name: Build Docker toolchain
+        run: docker build --pull -t bo1-android-builder -f tools/native/docker/Dockerfile tools/native/docker
+
+      - name: Build engine and APK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          WORK="$RUNNER_TEMP/bo1-work"
+          mkdir -p "$WORK"
+
+          docker run --rm --name bo1-android-build \
+            -e JOBS="$JOBS" \
+            -e BUILD_TYPE="$BUILD_TYPE" \
+            -v "$WORK:/bo1" \
+            -v "$GITHUB_WORKSPACE:/bo1/src" \
+            bo1-android-builder bash -lc '
+              set -Eeuo pipefail
+              S=/bo1/src/tools/native
+
+              echo "== NDK and patched LLVM =="
+              "$S/get-ndk.sh"
+              "$S/build-llvm.sh"
+
+              echo "== Android SDK, SDL2 source and FFmpeg =="
+              "$S/android-setup.sh"
+              "$S/build-ffmpeg.sh" linux
+              "$S/build-ffmpeg.sh" arm64-v8a
+
+              echo "== Generate the 32-bit-pointer source tree (first pass without DXVK) =="
+              "$S/build-p32.sh"
+
+              echo "== Build SDL2 and Android engine prerequisites =="
+              DXVK= "$S/build-android.sh"
+
+              echo "== Build DXVK Native 1.9.2 for Android ARM64 =="
+              "$S/build-dxvk-native-1.9.2.sh" arm64-v8a
+
+              echo "== Regenerate/reconfigure engine against matching Native 1.9.2 headers =="
+              rm -rf /bo1/src/build/native-x64
+              rm -rf /bo1/p32tree/build/x64 /bo1/p32tree/build/android
+              DXVK=/bo1/dxvk-native-1.9.2/src "$S/build-p32.sh"
+
+              echo "== Build Android engine with DXVK Native 1.9.2 =="
+              rm -rf /bo1/p32tree/build/android
+              DXVK=/bo1/dxvk-native-1.9.2/src "$S/build-android.sh"
+
+              echo "== Package APK with DXVK Native 1.9.2 =="
+              DXVK_DIR=/bo1/dxvk-native-1.9.2 "$S/build-apk.sh"
+
+              test -s /bo1/android/out/bo1-zombies-debug.apk
+              echo "APK generated:"
+              ls -lh /bo1/android/out/bo1-zombies-debug.apk
+              sha256sum /bo1/android/out/bo1-zombies-debug.apk
+            '
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bo1-android-arm64-dxvk-native-1.9.2
+          path: ${{ runner.temp }}/bo1-work/android/out/bo1-zombies-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bo1-android-build-logs-dxvk-native-1.9.2
+          path: |
+            ${{ runner.temp }}/bo1-work/**/*.log
+            ${{ github.workspace }}/build/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
