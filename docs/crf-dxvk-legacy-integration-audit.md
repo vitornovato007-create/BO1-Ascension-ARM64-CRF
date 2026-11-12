@@ -136,3 +136,18 @@ Referência consultada: `q4a/dxvk-native`, branch `master`, commit mais recente 
 O caminho tecnicamente correto é usar a árvore Native v1.9.2 como referência de integração e portar os deltas necessários para a árvore upstream v1.10.3. Isso envolve comparar os arquivos Native e seus pontos de integração com os arquivos equivalentes do tag 1.10.3, resolver conflitos de API/estrutura e então criar um patchset versionado. Não é seguro copiar apenas os diretórios `include/native` e `src/wsi`: os pontos de integração também incluem código de DXGI, Vulkan, D3D9 e utilitários, além de opções e dependências do Meson.
 
 Nenhum código de runtime foi alterado nesta etapa porque ainda não há um patchset reconciliado ou build validado. O próximo commit de código deve conter o backport real e verificável, não apenas trocar a URL do clone.
+
+## Atualização: candidato DXVK Native v1.9.2 preparado
+
+A pedido do mantenedor, a próxima etapa passou a usar a árvore Native v1.9.2 como candidato inicial, em vez de insistir no backport 1.10.3. Foi adicionado um script isolado e fixado no commit `dedfa1877afb9b9d30aaaa5935d56238ae12bb8b` de `q4a/dxvk-native`, além do suporte para o engine selecionar os headers dessa árvore e para o empacotador preferir a biblioteca 1.9.2 quando ela já estiver construída.
+
+Arquivos alterados/adicionados nesta implementação:
+- `tools/native/build-dxvk-native-1.9.2.sh`
+- `tools/native/build-android.sh`
+- `tools/native/build-apk.sh`
+- `src/native/vk/bo1vk_dxvk.cpp`
+- `docs/dxvk-native-1.9.2-android.md`
+
+A DXVK 2.6.1 permanece preservada em sua árvore e como fallback quando a biblioteca 1.9.2 ainda não existe. O script de build 1.9.2 não recebe automaticamente os patches internos específicos da 2.6.1; eles precisam ser avaliados e portados individualmente, caso o primeiro teste revele necessidade.
+
+**Estado de validação:** alterações de código e build foram commitadas, mas não foram compiladas, não houve smoke test, nenhum APK foi produzido e nenhum workflow foi executado. A versão 1.9.2 ainda é uma candidata experimental, não uma integração confirmada.
