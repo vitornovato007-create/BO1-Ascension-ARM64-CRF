@@ -136,6 +136,64 @@ public class Bo1Activity extends SDLActivity {
      * Starts the app again in a new process: the engine switches between its Zombies and Multiplayer modes, or to
      * another mod, by starting over with other arguments (next_args.txt, read by the loader stub).
      */
+    /**
+     * Hold Volume Down while playing to open the DXVK Manager.
+     * Only renderers included in this APK are selectable.
+     */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            event.startTracking();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            showDxvkManager();
+            return true;
+        }
+        return super.onKeyLongPress(keyCode, event);
+    }
+
+    private void showDxvkManager() {
+        final String[] labels = {
+            "DXVK Native 1.9.2 (Vulkan)",
+            "OpenGL ES (compatibilidade)"
+        };
+        final String[] values = { "dxvk-native-1.9.2", "gles" };
+        final SharedPreferences prefs = getSharedPreferences("dxvk_manager", MODE_PRIVATE);
+        int checked = "gles".equals(prefs.getString("renderer", "dxvk-native-1.9.2")) ? 1 : 0;
+        new AlertDialog.Builder(this)
+            .setTitle("DXVK Manager")
+            .setSingleChoiceItems(labels, checked, new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    String current = prefs.getString("renderer", "dxvk-native-1.9.2");
+                    if (!values[which].equals(current)) {
+                        prefs.edit().putString("renderer", values[which]).apply();
+                        dialog.dismiss();
+                        Toast.makeText(Bo1Activity.this, "Renderer alterado. Reiniciando o jogo...", Toast.LENGTH_SHORT).show();
+                        restartApp();
+                    } else {
+                        dialog.dismiss();
+                    }
+                }
+            })
+            .setNegativeButton("Fechar", null)
+            .show();
+    }
+
     public void restartApp() {
         Intent intent = Intent.makeRestartActivityTask(getComponentName());
         startActivity(intent);
