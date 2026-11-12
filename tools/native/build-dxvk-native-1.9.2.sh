@@ -74,7 +74,10 @@ cpp_link_args = ['-static-libstdc++', '-Wl,-z,max-page-size=16384']
 pkg_config_libdir = '$PC'
 
 [host_machine]
-system = 'android'
+# This DXVK Native revision has no Meson 'android' platform branch.
+# Use its Linux/POSIX platform sources while the NDK target triple and
+# compiler still produce an Android binary (__ANDROID__ remains compiler-defined).
+system = 'linux'
 cpu_family = '$FAMILY'
 cpu = '$FAMILY'
 endian = 'little'
