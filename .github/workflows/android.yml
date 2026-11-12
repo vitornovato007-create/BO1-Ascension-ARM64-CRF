@@ -72,7 +72,7 @@ jobs:
               "$S/build-llvm.sh"
 
               echo "== Android SDK, SDL2 source and FFmpeg =="
-              "$S/android-setup.sh"
+              bash "$S/android-setup.sh"
               "$S/build-ffmpeg.sh" linux
               "$S/build-ffmpeg.sh" arm64-v8a
 
