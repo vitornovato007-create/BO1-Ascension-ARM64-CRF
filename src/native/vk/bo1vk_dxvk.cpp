@@ -270,10 +270,10 @@ extern "C" bo1vk_h bo1vk_create(void)
     {
         IDirect3D9 *d3d = s_create(D3D_SDK_VERSION);
         bo1_lowmem_scan_host_modules();   // the Vulkan loader and driver are in now
-        // DXVK lists only the devices it can use (Vulkan 1.3 and the features it requires)
+        // DXVK lists only the devices it can use; the API level and required features depend on the selected DXVK build
         if (d3d && d3d->GetAdapterCount() == 0)
         {
-            fprintf(stderr, "vulkan: no Vulkan device DXVK can use (it needs Vulkan 1.3)\n");
+            fprintf(stderr, "vulkan: no Vulkan device usable by the selected DXVK build\n");
             d3d->Release();
             d3d = nullptr;
         }
