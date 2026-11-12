@@ -16,7 +16,7 @@ A árvore é DXVK Native, com os headers D3D9 Native e a integração SDL2 que o
 
 - `tools/native/build-dxvk-native-1.9.2.sh`: clona o commit fixo e constrói a biblioteca nativa em diretório separado:
   `/bo1/dxvk-native-1.9.2/build-android-arm64-v8a/src/d3d9/libdxvk_d3d9.so`.
-- `tools/native/build-apk.sh`: aceita `DXVK_DIR` para empacotar a biblioteca e a licença da árvore selecionada. Sem essa variável, continua usando a árvore antiga `/bo1/dxvk` (DXVK 2.6.1).
+- `tools/native/build-apk.sh`: aceita `DXVK_DIR` para empacotar a biblioteca e a licença da árvore selecionada. Sem essa variável, prefere automaticamente a árvore 1.9.2 quando a biblioteca ARM64 já foi construída; caso contrário, mantém a árvore antiga `/bo1/dxvk` (DXVK 2.6.1).
 - `src/native/vk/bo1vk_dxvk.cpp`: a mensagem de diagnóstico não presume mais que todo DXVK exija Vulkan 1.3.
 
 ## Sequência de build no ambiente do projeto
@@ -28,17 +28,17 @@ A árvore é DXVK Native, com os headers D3D9 Native e a integração SDL2 que o
    bash tools/native/build-dxvk-native-1.9.2.sh arm64-v8a
    ```
 
-3. Reconfigure o engine para compilar o bridge com os headers da mesma versão. Como o script atual reutiliza o diretório CMake existente, remova **somente o diretório de build Android do engine** antes da reconfiguração:
+3. Reconfigure o engine para compilar o bridge com os headers da mesma versão. O script agora prefere automaticamente os headers 1.9.2 quando a árvore existe. Como ele reutiliza o diretório CMake existente, remova **somente o diretório de build Android do engine** antes da reconfiguração:
 
    ```bash
    rm -rf /bo1/p32tree/build/android
-   DXVK=/bo1/dxvk-native-1.9.2/src bash tools/native/build-android.sh
+   bash tools/native/build-android.sh
    ```
 
 4. Empacote a biblioteca 1.9.2 no nome padrão esperado pelo app (`libdxvk_d3d9.so`):
 
    ```bash
-   DXVK_DIR=/bo1/dxvk-native-1.9.2 bash tools/native/build-apk.sh
+   bash tools/native/build-apk.sh
    ```
 
 A etapa 3 é importante: compilar o engine contra os headers 2.6.1 e carregar a implementação 1.9.2 não é o teste controlado desejado. A versão selecionada para headers e biblioteca precisa corresponder.
