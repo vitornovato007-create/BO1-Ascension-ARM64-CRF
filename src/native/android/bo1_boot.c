@@ -322,6 +322,28 @@ int SDL_main(int argc, char **argv)
         else
             engineArgv[engineArgc++] = argv[i];
     }
+    // DXVK Manager selection is stored by the native Extras menu in the engine's home directory.
+    // This setting is independent from bo1_renderer (OpenGL ES / Vulkan).
+    {
+        static char dxvkPath[1100], dxvkChoice[64];
+        snprintf(dxvkPath, sizeof(dxvkPath), "%s/bo1_dxvk_renderer.txt", home);
+        FILE *dxvkFile = fopen(dxvkPath, "r");
+        if (dxvkFile)
+        {
+            if (fgets(dxvkChoice, sizeof(dxvkChoice), dxvkFile))
+            {
+                dxvkChoice[strcspn(dxvkChoice, "\\r\\n")] = 0;
+                if (!strcmp(dxvkChoice, "dxvk-native-1.9.2") || !strcmp(dxvkChoice, "disabled"))
+                {
+                    setenv("BO1_DXVK_RENDERER", dxvkChoice, 1);
+                    Say("DXVK Manager: %s", dxvkChoice);
+                }
+                else
+                    Say("DXVK Manager: ignoring unknown selection '%s'", dxvkChoice);
+            }
+            fclose(dxvkFile);
+        }
+    }
     // args.txt holds the rest. Without the file the app starts the game's own front end (title screen, then the
     // main menu with Campaign / Multiplayer / Zombies), which a controller's d-pad and A drive.
     // next_args.txt: the arguments of one start, written by the engine when it starts the app again in its
