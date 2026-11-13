@@ -64,7 +64,7 @@ void bo1_native_restart_at_exit(const char *basePath, const char *homePath, cons
 
 namespace
 {
-enum RowKind { CHOICE, NUMBER, ACTION, TEXT, MOD };
+enum RowKind { CHOICE, NUMBER, ACTION, TEXT, MOD, DXVK };
 enum ActionId { ACT_NONE, ACT_EDIT_TOUCH, ACT_RESET_TOUCH, ACT_JOIN, ACT_CLOSE, ACT_PLAY, ACT_LOG };
 
 struct Row
@@ -85,6 +85,7 @@ const char *const kFpsNames[] = { "30", "45", "60", "90", "120", "144", "No limi
 const int kFpsValues[] = { 30, 45, 60, 90, 120, 144, 0 };
 const char *const kCounter[] = { "None", "Simple", "Advanced", "Full" };
 const char *const kRenderer[] = { "OpenGL ES", "Vulkan" };
+const char *const kDxvkNames[] = { "Native 1.9.2", "Disabled" };
 const char *const kShaderCompile[] = { "Wait (stutter)", "Effects in background", "All in background (flashes)" };   // bo1_vk_async 0 / 1 / 2
 const char *const kBots[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 const char *const kDifficulty[] = { "Recruit", "Regular", "Hardened", "Veteran" };   // easy, normal, hard, fu
@@ -102,6 +103,7 @@ const Row kRows[] = {
     { "FPS COUNTER", CHOICE, "bo1_fpscounter", 0, 0, 0, 0, kCounter, 0, 4, ACT_NONE },
 #ifdef BO1_DXVK
     { "RENDERER (RESTART)", CHOICE, "bo1_renderer", 0, 0, 0, 0, kRenderer, 0, 2, ACT_NONE },
+    { "DXVK MANAGER (RESTART)", DXVK, 0, 0, 0, 0, 0, kDxvkNames, 0, 2, ACT_NONE },
     { "NEW SHADERS (RESTART)", CHOICE, "bo1_vk_async", 0, 0, 0, 0, kShaderCompile, 0, 3, ACT_NONE },
 #endif
     { "BOT ENEMIES", CHOICE, "bo1_bot_enemies", 0, 0, 0, 0, kBots, 0, 10, ACT_NONE },
@@ -125,6 +127,12 @@ bool s_registered;
 float s_rowX, s_rowY, s_rowW, s_rowH, s_rowPitch, s_rowSplit;
 
 char s_mod[64];   // the mod of the next start ("" none)
+int s_dxvkChoice;  // 0: DXVK Native 1.9.2, 1: disable DXVK
+
+const char *DxvkFile()
+{
+    return va("%s/bo1_dxvk_renderer.txt", fs_homepath ? fs_homepath->current.string : "");
+}
 
 const char *ModFile()
 {
@@ -206,6 +214,16 @@ void StopTyping(bool keep)
         Cbuf_AddText(0, va("set name \"%s\"\n", s_text));
 }
 
+void Close();
+
+void RestartWithCurrentMode()
+{
+    Close();
+    bo1_native_restart_at_exit(fs_basepath->current.string, fs_homepath->current.string,
+        Dvar_GetInt("bo1_zombies") ? "+set bo1_zombies 1" : "");
+    Cbuf_AddText(0, "quit\n");
+}
+
 void Close()
 {
     StopTyping(true);
@@ -234,6 +252,17 @@ void Change(int direction)
         Set(row, va("%.2f", value));
         break;
     }
+    case DXVK:
+        if (direction != 0)
+        {
+            s_dxvkChoice = s_dxvkChoice == 0 ? 1 : 0;
+            bo1_native_write_line(DxvkFile(), s_dxvkChoice == 0 ? "dxvk-native-1.9.2" : "disabled");
+        }
+        else
+        {
+            RestartWithCurrentMode();
+        }
+        break;
     case TEXT:
         if (direction == 0)
         {
@@ -257,10 +286,7 @@ void Change(int direction)
         else
         {
             // start again in the same mode; the mod file is read at the start
-            Close();
-            bo1_native_restart_at_exit(fs_basepath->current.string, fs_homepath->current.string,
-                Dvar_GetInt("bo1_zombies") ? "+set bo1_zombies 1" : "");
-            Cbuf_AddText(0, "quit\n");
+            RestartWithCurrentMode();
         }
         break;
     case ACTION:
@@ -336,6 +362,11 @@ void CL_Extras_Open()
 {
     s_open = true;
     bo1_native_read_line(ModFile(), s_mod, (int)sizeof(s_mod));
+    char dxvk[64] = {};
+    if (bo1_native_read_line(DxvkFile(), dxvk, (int)sizeof(dxvk)) > 0)
+        s_dxvkChoice = !I_stricmp(dxvk, "disabled") ? 1 : 0;
+    else
+        s_dxvkChoice = 0;
     s_typing = false;
 }
 
@@ -476,6 +507,10 @@ void CL_Extras_Draw()
         else if (row.kind == MOD)
         {
             value = s_mod[0] ? s_mod : "None";
+        }
+        else if (row.kind == DXVK)
+        {
+            value = kDxvkNames[s_dxvkChoice];
         }
         else if (row.kind == TEXT)
         {
