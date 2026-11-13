@@ -223,7 +223,7 @@ extern "C" int bo1vk_available(void)
     const char *renderer = getenv("BO1_DXVK_RENDERER");
     if (renderer && !strcmp(renderer, "disabled"))
     {
-        fprintf(stderr, "vulkan: DXVK Manager disabled DXVK Native; the engine may use its compatibility renderer\\n");
+        fprintf(stderr, "vulkan: DXVK Manager disabled DXVK Native; the engine may use its compatibility renderer\n");
         return 0;
     }
     if (renderer && strcmp(renderer, "dxvk-native-1.9.2") != 0)
