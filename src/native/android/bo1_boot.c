@@ -332,7 +332,7 @@ int SDL_main(int argc, char **argv)
         {
             if (fgets(dxvkChoice, sizeof(dxvkChoice), dxvkFile))
             {
-                dxvkChoice[strcspn(dxvkChoice, "\\r\\n")] = 0;
+                dxvkChoice[strcspn(dxvkChoice, "\r\n")] = 0;
                 if (!strcmp(dxvkChoice, "dxvk-native-1.9.2") || !strcmp(dxvkChoice, "disabled"))
                 {
                     setenv("BO1_DXVK_RENDERER", dxvkChoice, 1);
