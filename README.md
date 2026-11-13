@@ -141,6 +141,6 @@ tools/native/build-apk.sh        # the APK (RELEASE_KEYSTORE=... for a release-s
 
 ## Android DXVK Manager (experimental)
 
-In the experimental Android build, hold the device's **Volume Down** button while the game is running to open the DXVK Manager. The first selectable backend is DXVK Native 1.9.2 (Vulkan); the second is the OpenGL ES compatibility renderer. Changing the selection saves it in Android app preferences and restarts the game so the native renderer is initialized cleanly.
+The Android build exposes **DXVK MANAGER (RESTART)** as a separate row in the in-game **EXTRAS** menu. It does not change **RENDERER (RESTART)** (OpenGL ES / Vulkan). The currently packaged DXVK choice is **DXVK Native 1.9.2**; **Disabled** prevents the DXVK D3D9 library from loading, allowing the engine's compatibility path to be used. Choose a value with left/right and press A to restart and apply it.
 
-Only backends actually packaged in the APK are shown. DXVK 1.10.3 and DXVK Sarek 1.11.1 are **not available yet**: both still require a verified Android/DXVK-Native port and separate ARM64 builds. They are intentionally not presented as selectable options until that work is complete. The manager does not promise a performance improvement; compare both available renderers in the same map and graphics settings.
+DXVK 1.10.3 and DXVK Sarek 1.11.1 are not selectable yet: they still need verified Android/DXVK-Native ports and separate ARM64 builds. The Manager only exposes choices implemented in this APK and does not imply a performance improvement.
