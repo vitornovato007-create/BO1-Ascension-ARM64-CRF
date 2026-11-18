@@ -247,6 +247,177 @@ int ButtonMask(Uint32 sdl)
 }
 }
 
+// Read-only Vulkan capability probe. It deliberately creates no device, surface or swapchain;
+// this lets us collect Mali/driver limits without changing the active renderer.
+namespace
+{
+void ProbeVulkanCapabilities()
+{
+    static bool probed = false;
+    if (probed)
+        return;
+    probed = true;
+
+    PFN_vkGetInstanceProcAddr getProc = SDL_Vulkan_GetVkGetInstanceProcAddr();
+    if (!getProc)
+    {
+        fprintf(stderr, "native-vk-probe: SDL did not provide vkGetInstanceProcAddr\n");
+        return;
+    }
+    PFN_vkCreateInstance createInstance =
+        (PFN_vkCreateInstance)getProc(VK_NULL_HANDLE, "vkCreateInstance");
+    if (!createInstance)
+    {
+        fprintf(stderr, "native-vk-probe: vkCreateInstance is unavailable\n");
+        return;
+    }
+
+    VkApplicationInfo app;
+    memset(&app, 0, sizeof(app));
+    app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    app.pApplicationName = "BO1 Vulkan capability probe";
+    app.applicationVersion = 1;
+    app.pEngineName = "BO1";
+    app.engineVersion = 1;
+    app.apiVersion = VK_API_VERSION_1_0;
+
+    VkInstanceCreateInfo createInfo;
+    memset(&createInfo, 0, sizeof(createInfo));
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    createInfo.pApplicationInfo = &app;
+
+    VkInstance instance = VK_NULL_HANDLE;
+    VkResult result = createInstance(&createInfo, nullptr, &instance);
+    if (result != VK_SUCCESS || instance == VK_NULL_HANDLE)
+    {
+        fprintf(stderr, "native-vk-probe: vkCreateInstance failed (%d)\n", (int)result);
+        return;
+    }
+
+    PFN_vkDestroyInstance destroyInstance =
+        (PFN_vkDestroyInstance)getProc(instance, "vkDestroyInstance");
+    PFN_vkEnumeratePhysicalDevices enumerateDevices =
+        (PFN_vkEnumeratePhysicalDevices)getProc(instance, "vkEnumeratePhysicalDevices");
+    PFN_vkGetPhysicalDeviceProperties getProperties =
+        (PFN_vkGetPhysicalDeviceProperties)getProc(instance, "vkGetPhysicalDeviceProperties");
+    PFN_vkGetPhysicalDeviceFeatures getFeatures =
+        (PFN_vkGetPhysicalDeviceFeatures)getProc(instance, "vkGetPhysicalDeviceFeatures");
+    PFN_vkGetPhysicalDeviceMemoryProperties getMemory =
+        (PFN_vkGetPhysicalDeviceMemoryProperties)getProc(instance, "vkGetPhysicalDeviceMemoryProperties");
+    PFN_vkGetPhysicalDeviceQueueFamilyProperties getQueues =
+        (PFN_vkGetPhysicalDeviceQueueFamilyProperties)getProc(instance, "vkGetPhysicalDeviceQueueFamilyProperties");
+    PFN_vkGetPhysicalDeviceFormatProperties getFormat =
+        (PFN_vkGetPhysicalDeviceFormatProperties)getProc(instance, "vkGetPhysicalDeviceFormatProperties");
+    PFN_vkEnumerateDeviceExtensionProperties enumerateExtensions =
+        (PFN_vkEnumerateDeviceExtensionProperties)getProc(instance, "vkEnumerateDeviceExtensionProperties");
+
+    if (!destroyInstance || !enumerateDevices || !getProperties || !getFeatures ||
+        !getMemory || !getQueues || !getFormat || !enumerateExtensions)
+    {
+        fprintf(stderr, "native-vk-probe: one or more instance functions are unavailable\n");
+        if (destroyInstance)
+            destroyInstance(instance, nullptr);
+        return;
+    }
+
+    uint32_t deviceCount = 0;
+    result = enumerateDevices(instance, &deviceCount, nullptr);
+    if (result != VK_SUCCESS || deviceCount == 0)
+    {
+        fprintf(stderr, "native-vk-probe: no Vulkan physical devices (result=%d count=%u)\n",
+            (int)result, deviceCount);
+        destroyInstance(instance, nullptr);
+        return;
+    }
+
+    VkPhysicalDevice *devices = new VkPhysicalDevice[deviceCount];
+    result = enumerateDevices(instance, &deviceCount, devices);
+    if (result != VK_SUCCESS)
+    {
+        fprintf(stderr, "native-vk-probe: physical-device enumeration failed (%d)\n", (int)result);
+        delete[] devices;
+        destroyInstance(instance, nullptr);
+        return;
+    }
+
+    fprintf(stderr, "native-vk-probe: found %u physical device(s)\n", deviceCount);
+    for (uint32_t d = 0; d < deviceCount; ++d)
+    {
+        VkPhysicalDeviceProperties props;
+        VkPhysicalDeviceFeatures features;
+        VkPhysicalDeviceMemoryProperties memory;
+        memset(&props, 0, sizeof(props));
+        memset(&features, 0, sizeof(features));
+        memset(&memory, 0, sizeof(memory));
+        getProperties(devices[d], &props);
+        getFeatures(devices[d], &features);
+        getMemory(devices[d], &memory);
+
+        fprintf(stderr,
+            "native-vk-probe: GPU[%u] %s vendor=0x%04x device=0x%04x type=%u api=%u.%u.%u driver=%u\n",
+            d, props.deviceName, props.vendorID, props.deviceID, (unsigned)props.deviceType,
+            VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion),
+            VK_VERSION_PATCH(props.apiVersion), props.driverVersion);
+        fprintf(stderr,
+            "native-vk-probe: limits max2D=%u maxImageArray=%u maxUBO=%u maxPush=%u maxBoundSets=%u anisotropy=%u\n",
+            props.limits.maxImageDimension2D, props.limits.maxImageArrayLayers,
+            props.limits.maxUniformBufferRange, props.limits.maxPushConstantsSize,
+            props.limits.maxBoundDescriptorSets, features.samplerAnisotropy ? 1u : 0u);
+
+        uint32_t queueCount = 0;
+        getQueues(devices[d], &queueCount, nullptr);
+        VkQueueFamilyProperties *queues = queueCount ? new VkQueueFamilyProperties[queueCount] : nullptr;
+        if (queueCount)
+        {
+            getQueues(devices[d], &queueCount, queues);
+            for (uint32_t q = 0; q < queueCount; ++q)
+                fprintf(stderr, "native-vk-probe: GPU[%u] queue[%u] flags=0x%x count=%u timestampBits=%u\n",
+                    d, q, queues[q].queueFlags, queues[q].queueCount, queues[q].timestampValidBits);
+        }
+        delete[] queues;
+
+        for (uint32_t h = 0; h < memory.memoryHeapCount; ++h)
+            fprintf(stderr, "native-vk-probe: GPU[%u] heap[%u] size=%lluMiB flags=0x%x\n",
+                d, h, (unsigned long long)(memory.memoryHeaps[h].size / (1024 * 1024)),
+                memory.memoryHeaps[h].flags);
+
+        uint32_t extensionCount = 0;
+        bool swapchain = false;
+        if (enumerateExtensions(devices[d], nullptr, &extensionCount, nullptr) == VK_SUCCESS && extensionCount)
+        {
+            VkExtensionProperties *extensions = new VkExtensionProperties[extensionCount];
+            if (enumerateExtensions(devices[d], nullptr, &extensionCount, extensions) == VK_SUCCESS)
+            {
+                for (uint32_t e = 0; e < extensionCount; ++e)
+                    if (strcmp(extensions[e].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
+                        swapchain = true;
+            }
+            delete[] extensions;
+        }
+        fprintf(stderr, "native-vk-probe: GPU[%u] VK_KHR_swapchain=%s\n", d, swapchain ? "yes" : "no");
+
+        const VkFormat formats[] = {
+            VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8A8_UNORM,
+            VK_FORMAT_BC1_RGBA_UNORM_BLOCK, VK_FORMAT_BC3_UNORM_BLOCK,
+            VK_FORMAT_ASTC_4x4_UNORM_BLOCK, VK_FORMAT_D24_UNORM_S8_UINT
+        };
+        const char *formatNames[] = { "RGBA8", "BGRA8", "BC1", "BC3", "ASTC_4x4", "D24S8" };
+        for (unsigned int i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i)
+        {
+            VkFormatProperties fp;
+            memset(&fp, 0, sizeof(fp));
+            getFormat(devices[d], formats[i], &fp);
+            fprintf(stderr, "native-vk-probe: GPU[%u] format[%s] linear=0x%x optimal=0x%x buffer=0x%x\n",
+                d, formatNames[i], fp.linearTilingFeatures, fp.optimalTilingFeatures, fp.bufferFeatures);
+        }
+    }
+
+    delete[] devices;
+    destroyInstance(instance, nullptr);
+    fprintf(stderr, "native-vk-probe: complete (no VkDevice/surface/swapchain created)\n");
+}
+}
+
 // The Vulkan renderer's window (src/native/vk/bo1vk_dxvk.cpp): the same window as CreateContext makes, without a GL
 // context. DXVK's SDL2 window system creates the surface and the swap chain on it. Called again on a mode change.
 // On Android the window is the display and DXVK stretches the back buffer over it.
@@ -262,6 +433,7 @@ extern "C" int bo1_native_video_vulkan_prepare(void)
         fprintf(stderr, "native: SDL_Vulkan_LoadLibrary failed: %s\n", SDL_GetError());
         return 0;
     }
+    ProbeVulkanCapabilities();
     return 1;
 }
 
