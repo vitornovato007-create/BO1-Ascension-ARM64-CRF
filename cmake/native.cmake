@@ -230,6 +230,11 @@ set_source_files_properties(${BO1_NATIVE_PLATFORM_SOURCES} PROPERTIES COMPILE_OP
 set_source_files_properties(${BO1_NATIVE_PLAIN_SOURCES} PROPERTIES COMPILE_OPTIONS
     "${BO1_NATIVE_ARCH_FLAGS_PLAIN};-pthread;-D_TIME_BITS=64")
 
+# The standalone WSI test calls the Android Vulkan loader directly (the DXVK library itself is dlopen'ed).
+if (BO1_NATIVE_ANDROID)
+    target_link_libraries(${BIN_NAME} PRIVATE vulkan)
+endif()
+
 target_compile_definitions(${BIN_NAME} PRIVATE ${BO1_NATIVE_DEFINES})
 if (BO1_NATIVE_P32)
     target_compile_options(${BIN_NAME} PRIVATE -include "${NATIVE_DIR}/native_p32.h")
