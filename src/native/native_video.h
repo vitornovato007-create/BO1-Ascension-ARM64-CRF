@@ -13,6 +13,10 @@ void bo1_native_video_register(void);
 // and on threads other than the one that created it.
 void bo1_native_video_pump(void);
 
+// Creates the SDL Vulkan window used by the DXVK path and by the standalone WSI diagnostic.
+// The caller owns the returned window and must destroy it before another renderer window is created.
+void *bo1_native_video_vulkan_window(int width, int height);
+
 // Game controllers (native_gamepad.cpp): reads SDL's controllers into the bo1_gamepad array the engine's pad
 // backend reads, and plays the rumble it asks for. Called once per frame on the window's thread.
 void bo1_native_gamepad_update(void);
