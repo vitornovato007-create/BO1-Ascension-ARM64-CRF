@@ -492,7 +492,7 @@ extern "C" int bo1_native_video_vulkan_prepare(void)
         s_vulkanPresentTestAttempted = true;
         if (s_window)
         {
-            fprintf(stderr, "native-vk-present: SKIP test window already exists (renderer window is active)\\n");
+            fprintf(stderr, "native-vk-present: SKIP test window already exists (renderer window is active)\n");
         }
         else
         {
@@ -502,11 +502,11 @@ extern "C" int bo1_native_video_vulkan_prepare(void)
                 const int passed = bo1_native_vulkan_present_test(testWindow);
                 SDL_DestroyWindow(testWindow);
                 s_window = nullptr;
-                fprintf(stderr, "native-vk-present: diagnostic %s; continuing with selected renderer\\n",
+                fprintf(stderr, "native-vk-present: diagnostic %s; continuing with selected renderer\n",
                     passed ? "passed" : "failed");
             }
             else
-                fprintf(stderr, "native-vk-present: FAIL stage=SDL_CreateWindow error=%s\\n", SDL_GetError());
+                fprintf(stderr, "native-vk-present: FAIL stage=SDL_CreateWindow error=%s\n", SDL_GetError());
         }
     }
     return 1;
