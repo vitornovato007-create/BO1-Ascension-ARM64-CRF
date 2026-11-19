@@ -485,6 +485,7 @@ extern "C" int bo1_native_video_vulkan_prepare(void)
     }
     ProbeVulkanCapabilities();
 
+#ifdef __ANDROID__
     // Run a real Android WSI test once before DXVK creates its own instance/surface.
     // The test window and VkSurface are destroyed before returning; the SDL Vulkan loader stays loaded for DXVK.
     if (!s_vulkanPresentTestAttempted)
@@ -509,6 +510,7 @@ extern "C" int bo1_native_video_vulkan_prepare(void)
                 fprintf(stderr, "native-vk-present: FAIL stage=SDL_CreateWindow error=%s\n", SDL_GetError());
         }
     }
+#endif
     return 1;
 }
 
