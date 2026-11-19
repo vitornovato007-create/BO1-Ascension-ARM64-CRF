@@ -251,9 +251,13 @@ int SDL_main(int argc, char **argv)
     snprintf(game, sizeof(game), "%s/game", files);
     snprintf(home, sizeof(home), "%s/home", files);
     snprintf(logPath, sizeof(logPath), "%s/bo1.log", files);
+    static char dxvkStatusPath[1100];
+    snprintf(dxvkStatusPath, sizeof(dxvkStatusPath), "%s/dxvk_status.txt", home);
+    setenv("BO1_DXVK_STATUS_FILE", dxvkStatusPath, 1);
     snprintf(argsPath, sizeof(argsPath), "%s/args.txt", files);
     mkdir(game, 0775);
     mkdir(home, 0775);
+    { FILE *status = fopen(dxvkStatusPath, "w"); if (status) { fputs("Not tested (Vulkan renderer has not initialized)\n", status); fclose(status); } }
 
     // stdout and stderr have no terminal in an app: the log file takes both
     // the log of the start before this one stays as bo1.prev.log (a crash is usually read after the next start)
