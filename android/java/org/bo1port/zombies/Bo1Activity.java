@@ -140,6 +140,15 @@ public class Bo1Activity extends SDLActivity {
      * system's share sheet.
      */
     public void shareLog(final String path) {
+        shareTextFile(path, "Black Ops port log", "Send log");
+    }
+
+    /** Shares the dedicated Vulkan probe report separately from the regular game log. */
+    public void shareVulkanProbeLog(final String path) {
+        shareTextFile(path, "Black Ops Vulkan capability probe", "Send Vulkan probe log");
+    }
+
+    private void shareTextFile(final String path, final String subject, final String chooserTitle) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -158,9 +167,9 @@ public class Bo1Activity extends SDLActivity {
                 }
                 Intent send = new Intent(Intent.ACTION_SEND);
                 send.setType("text/plain");
-                send.putExtra(Intent.EXTRA_SUBJECT, "Black Ops port log");
+                send.putExtra(Intent.EXTRA_SUBJECT, subject);
                 send.putExtra(Intent.EXTRA_TEXT, text);
-                startActivity(Intent.createChooser(send, "Send log"));
+                startActivity(Intent.createChooser(send, chooserTitle));
             }
         });
     }
