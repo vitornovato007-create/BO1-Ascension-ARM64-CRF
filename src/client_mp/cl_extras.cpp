@@ -65,7 +65,7 @@ void bo1_native_restart_at_exit(const char *basePath, const char *homePath, cons
 
 namespace
 {
-enum RowKind { CHOICE, NUMBER, ACTION, TEXT, MOD, DXVK };
+enum RowKind { CHOICE, NUMBER, ACTION, TEXT, MOD, DXVK, STATUS };
 enum ActionId { ACT_NONE, ACT_EDIT_TOUCH, ACT_RESET_TOUCH, ACT_JOIN, ACT_CLOSE, ACT_PLAY, ACT_LOG, ACT_VULKAN_LOG };
 
 struct Row
@@ -105,6 +105,7 @@ const Row kRows[] = {
 #ifdef BO1_DXVK
     { "RENDERER (RESTART)", CHOICE, "bo1_renderer", 0, 0, 0, 0, kRenderer, 0, 2, ACT_NONE },
     { "DXVK MANAGER (RESTART)", DXVK, 0, 0, 0, 0, 0, kDxvkNames, 0, 2, ACT_NONE },
+    { "DXVK RUNTIME STATUS", STATUS, 0, 0, 0, 0, 0, 0, 0, 0, ACT_NONE },
     { "NEW SHADERS (RESTART)", CHOICE, "bo1_vk_async", 0, 0, 0, 0, kShaderCompile, 0, 3, ACT_NONE },
 #endif
     { "BOT ENEMIES", CHOICE, "bo1_bot_enemies", 0, 0, 0, 0, kBots, 0, 10, ACT_NONE },
@@ -130,6 +131,7 @@ float s_rowX, s_rowY, s_rowW, s_rowH, s_rowPitch, s_rowSplit;
 
 char s_mod[64];   // the mod of the next start ("" none)
 int s_dxvkChoice;  // 0: DXVK Native 1.9.2, 1: disable DXVK
+char s_dxvkStatus[112] = "Not tested (Vulkan renderer has not initialized)";
 
 const char *DxvkFile()
 {
@@ -373,6 +375,9 @@ void CL_Extras_Open()
         s_dxvkChoice = !I_stricmp(dxvk, "disabled") ? 1 : 0;
     else
         s_dxvkChoice = 0;
+    if (!bo1_native_read_line(va("%s/dxvk_status.txt", fs_homepath ? fs_homepath->current.string : ""),
+        s_dxvkStatus, (int)sizeof(s_dxvkStatus)) || !s_dxvkStatus[0])
+        I_strncpyz(s_dxvkStatus, "Not tested (Vulkan renderer has not initialized)", sizeof(s_dxvkStatus));
     s_typing = false;
 }
 
@@ -517,6 +522,10 @@ void CL_Extras_Draw()
         else if (row.kind == DXVK)
         {
             value = kDxvkNames[s_dxvkChoice];
+        }
+        else if (row.kind == STATUS)
+        {
+            value = s_dxvkStatus;
         }
         else if (row.kind == TEXT)
         {
