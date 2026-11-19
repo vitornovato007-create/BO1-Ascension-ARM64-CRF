@@ -198,7 +198,10 @@ bool DeviceWorks(IDirect3D9 *d3d)
     works = 0;
     void *window = bo1_native_video_vulkan_window(1280, 720);
     if (!window)
+    {
+        WriteManagerStatus("Vulkan window init failed");
         return false;
+    }
     D3DPRESENT_PARAMETERS pp = {};
     pp.BackBufferWidth = 64;
     pp.BackBufferHeight = 64;
@@ -222,10 +225,10 @@ bool DeviceWorks(IDirect3D9 *d3d)
     {
         device->Release();
         works = 1;
-        WriteManagerStatus("Vulkan device test passed; waiting for game device");
+        WriteManagerStatus("Vulkan device test passed");
         return true;
     }
-    WriteManagerStatus("Vulkan device creation failed (see SEND LOG)");
+    WriteManagerStatus("Device test failed; see log");
     fprintf(stderr, "vulkan: DXVK cannot create a device with this driver (0x%08x)\n", (unsigned)hr);
     bo1_native_video_vulkan_close();
     return false;
@@ -240,7 +243,7 @@ extern "C" int bo1vk_available(void)
     const char *renderer = getenv("BO1_DXVK_RENDERER");
     if (renderer && !strcmp(renderer, "disabled"))
     {
-        WriteManagerStatus("Disabled by Manager (GLES fallback)");
+        WriteManagerStatus("Disabled: GLES fallback");
         fprintf(stderr, "vulkan: DXVK Manager disabled DXVK Native; the engine may use its compatibility renderer\n");
         return 0;
     }
@@ -278,7 +281,7 @@ extern "C" int bo1vk_available(void)
     if (!lib)
     {
         const char *error = dlerror();
-        WriteManagerStatus("Library load failed (see SEND LOG)");
+        WriteManagerStatus("Library load failed");
         fprintf(stderr, "vulkan: %s\n", error ? error : "dlopen failed");
         return 0;
     }
@@ -286,18 +289,23 @@ extern "C" int bo1vk_available(void)
     s_create = (CreateFn)dlsym(lib, "Direct3DCreate9");
     if (!s_create)
     {
-        WriteManagerStatus("Library missing Direct3DCreate9");
+        WriteManagerStatus("Missing Direct3DCreate9");
         fprintf(stderr, "vulkan: %s has no Direct3DCreate9\n", path);
     }
     else
-        WriteManagerStatus("Library loaded; Vulkan device not tested");
+        WriteManagerStatus("Library loaded; device pending");
     return s_create != nullptr;
 }
 
 extern "C" bo1vk_h bo1vk_create(void)
 {
-    if (!bo1vk_available() || !bo1_native_video_vulkan_prepare())
+    if (!bo1vk_available())
         return 0;
+    if (!bo1_native_video_vulkan_prepare())
+    {
+        WriteManagerStatus("Vulkan window init failed");
+        return 0;
+    }
     // DXVK throws when there is no Vulkan driver or no usable device
     try
     {
@@ -306,7 +314,7 @@ extern "C" bo1vk_h bo1vk_create(void)
         // DXVK lists only the devices it can use; the API level and required features depend on the selected DXVK build
         if (d3d && d3d->GetAdapterCount() == 0)
         {
-            WriteManagerStatus("No compatible Vulkan adapter");
+            WriteManagerStatus("Vulkan adapter not found");
             fprintf(stderr, "vulkan: no Vulkan device usable by the selected DXVK build\n");
             d3d->Release();
             d3d = nullptr;
@@ -322,7 +330,7 @@ extern "C" bo1vk_h bo1vk_create(void)
     }
     catch (...)
     {
-        WriteManagerStatus("DXVK startup exception (see SEND LOG)");
+        WriteManagerStatus("Startup exception; see log");
         fprintf(stderr, "vulkan: DXVK could not start (no Vulkan driver or device?)\n");
         return 0;
     }
@@ -411,11 +419,11 @@ extern "C" int32_t bo1vk_d3d_create_device(bo1vk_h d3d, uint32_t adapter, uint32
         FromD3D(pp, in);
         s_backWidth = pp.BackBufferWidth;
         s_backHeight = pp.BackBufferHeight;
-        WriteManagerStatus("DXVK ACTIVE (Vulkan game device created)");
+        WriteManagerStatus("DXVK active: Vulkan");
     }
     else
     {
-        WriteManagerStatus("Game device creation failed (see SEND LOG)");
+        WriteManagerStatus("Game device failed; see log");
         fprintf(stderr, "vulkan: game device creation failed (0x%08x)\n", (unsigned)hr);
     }
     return Out(hr, device, outDevice);
