@@ -164,4 +164,31 @@ public class Bo1Activity extends SDLActivity {
             }
         });
     }
+    /** Shares the dedicated Vulkan capability probe report separately from the regular game log. */
+    public void shareVulkanProbeLog(final String path) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                String text;
+                try {
+                    RandomAccessFile file = new RandomAccessFile(new File(path), "r");
+                    long length = file.length();
+                    int count = (int) Math.min(length, 120000L);
+                    byte[] bytes = new byte[count];
+                    file.seek(length - count);
+                    file.readFully(bytes);
+                    file.close();
+                    text = new String(bytes, "UTF-8");
+                } catch (Exception e) {
+                    text = "The Vulkan probe report could not be read: " + e;
+                }
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(Intent.EXTRA_SUBJECT, "Black Ops Vulkan capability probe");
+                send.putExtra(Intent.EXTRA_TEXT, text);
+                startActivity(Intent.createChooser(send, "Send Vulkan probe log"));
+            }
+        });
+    }
+
 }
