@@ -18,6 +18,9 @@
 #include <string.h>
 #include <string>
 
+extern "C" int bo1_native_vulkan_present_test(SDL_Window *window);
+extern "C" const char *bo1_native_vulkan_present_test_log(void);
+
 extern "C" {
 // src/web/compat/win_gui.cpp: the fake window's client size
 void bo1_web_canvas_size(int *width, int *height);
@@ -255,6 +258,7 @@ namespace
 {
 std::string s_vulkanProbeLog;
 bool s_vulkanProbeAttempted;
+bool s_vulkanPresentTestAttempted;
 
 void ProbeLog(const char *format, ...)
 {
@@ -452,6 +456,12 @@ extern "C" int bo1_native_video_write_vulkan_probe_log(const char *path)
         fputs("The Vulkan probe ran but produced no diagnostic records.\n", file);
     else
         fwrite(s_vulkanProbeLog.data(), 1, s_vulkanProbeLog.size(), file);
+    const char *presentLog = bo1_native_vulkan_present_test_log();
+    if (presentLog && presentLog[0])
+    {
+        fputs("\n", file);
+        fputs(presentLog, file);
+    }
     const int ok = fflush(file) == 0;
     fclose(file);
     return ok ? 1 : 0;
@@ -474,6 +484,31 @@ extern "C" int bo1_native_video_vulkan_prepare(void)
         return 0;
     }
     ProbeVulkanCapabilities();
+
+    // Run a real Android WSI test once before DXVK creates its own instance/surface.
+    // The test window and VkSurface are destroyed before returning; the SDL Vulkan loader stays loaded for DXVK.
+    if (!s_vulkanPresentTestAttempted)
+    {
+        s_vulkanPresentTestAttempted = true;
+        if (s_window)
+        {
+            fprintf(stderr, "native-vk-present: SKIP test window already exists (renderer window is active)\\n");
+        }
+        else
+        {
+            SDL_Window *testWindow = (SDL_Window *)bo1_native_video_vulkan_window(1280, 720);
+            if (testWindow)
+            {
+                const int passed = bo1_native_vulkan_present_test(testWindow);
+                SDL_DestroyWindow(testWindow);
+                s_window = nullptr;
+                fprintf(stderr, "native-vk-present: diagnostic %s; continuing with selected renderer\\n",
+                    passed ? "passed" : "failed");
+            }
+            else
+                fprintf(stderr, "native-vk-present: FAIL stage=SDL_CreateWindow error=%s\\n", SDL_GetError());
+        }
+    }
     return 1;
 }
 
