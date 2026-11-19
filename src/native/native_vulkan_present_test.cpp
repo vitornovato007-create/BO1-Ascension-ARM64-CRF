@@ -135,7 +135,7 @@ extern "C" int bo1_native_vulkan_present_test(SDL_Window *window)
     // incompatible with SDL_Vulkan_GetInstanceExtensions.
     if (!SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, nullptr))
     {
-        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions(count) error=%s\\n", SDL_GetError());
+        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions(count) error=%s\n", SDL_GetError());
         return 0;
     }
 
@@ -143,10 +143,10 @@ extern "C" int bo1_native_vulkan_present_test(SDL_Window *window)
     if (extensionCount > 0 &&
         !SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, extensionNames.data()))
     {
-        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions(names) error=%s\\n", SDL_GetError());
+        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions(names) error=%s\n", SDL_GetError());
         return 0;
     }
-    Log("native-vk-present: SDL required instance extensions=%u\\n", extensionCount);
+    Log("native-vk-present: SDL required instance extensions=%u\n", extensionCount);
 
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
