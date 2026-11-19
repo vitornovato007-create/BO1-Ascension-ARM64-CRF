@@ -130,13 +130,23 @@ extern "C" int bo1_native_vulkan_present_test(SDL_Window *window)
 
     State s;
     uint32_t extensionCount = 0;
-    const char **extensionNames = nullptr;
-    if (!SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, &extensionNames))
+    // SDL2 uses a two-call pattern: query the count, then fill caller-owned
+    // storage. Passing &extensionNames here would be const char*** and is
+    // incompatible with SDL_Vulkan_GetInstanceExtensions.
+    if (!SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, nullptr))
     {
-        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions error=%s\n", SDL_GetError());
+        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions(count) error=%s\\n", SDL_GetError());
         return 0;
     }
-    Log("native-vk-present: SDL required instance extensions=%u\n", extensionCount);
+
+    std::vector<const char *> extensionNames(extensionCount);
+    if (extensionCount > 0 &&
+        !SDL_Vulkan_GetInstanceExtensions(window, &extensionCount, extensionNames.data()))
+    {
+        Log("native-vk-present: FAIL stage=SDL_Vulkan_GetInstanceExtensions(names) error=%s\\n", SDL_GetError());
+        return 0;
+    }
+    Log("native-vk-present: SDL required instance extensions=%u\\n", extensionCount);
 
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -150,7 +160,7 @@ extern "C" int bo1_native_vulkan_present_test(SDL_Window *window)
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceInfo.pApplicationInfo = &app;
     instanceInfo.enabledExtensionCount = extensionCount;
-    instanceInfo.ppEnabledExtensionNames = extensionNames;
+    instanceInfo.ppEnabledExtensionNames = extensionNames.empty() ? nullptr : extensionNames.data();
     VkResult result = vkCreateInstance(&instanceInfo, nullptr, &s.instance);
     if (result != VK_SUCCESS)
     {
