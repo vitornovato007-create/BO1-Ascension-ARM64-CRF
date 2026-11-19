@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#ifdef __ANDROID__
+
 namespace
 {
 std::string s_log;
@@ -660,3 +662,21 @@ extern "C" const char *bo1_native_vulkan_present_test_log(void)
 {
     return s_log.c_str();
 }
+#else
+
+namespace
+{
+std::string s_log = "native-vk-present: SKIP this presentation test is Android-only\n";
+}
+
+extern "C" int bo1_native_vulkan_present_test(SDL_Window *)
+{
+    return 0;
+}
+
+extern "C" const char *bo1_native_vulkan_present_test_log(void)
+{
+    return s_log.c_str();
+}
+
+#endif
