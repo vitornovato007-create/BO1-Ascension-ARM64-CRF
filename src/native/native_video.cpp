@@ -13,8 +13,10 @@
 #include <SDL2/SDL_vulkan.h>
 #include <d3d9shim.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <string>
 
 extern "C" {
 // src/web/compat/win_gui.cpp: the fake window's client size
@@ -251,8 +253,26 @@ int ButtonMask(Uint32 sdl)
 // this lets us collect Mali/driver limits without changing the active renderer.
 namespace
 {
+std::string s_vulkanProbeLog;
+bool s_vulkanProbeAttempted;
+
+void ProbeLog(const char *format, ...)
+{
+    char line[2048];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(line, sizeof(line), format, args);
+    va_end(args);
+    s_vulkanProbeLog += line;
+    fputs(line, stderr);
+}
+
 void ProbeVulkanCapabilities()
 {
+    s_vulkanProbeAttempted = true;
+    s_vulkanProbeLog.clear();
+    ProbeLog("BO1 Vulkan capability probe\n");
+    ProbeLog("=============================\n");
     static bool probed = false;
     if (probed)
         return;
@@ -261,14 +281,14 @@ void ProbeVulkanCapabilities()
     PFN_vkGetInstanceProcAddr getProc = SDL_Vulkan_GetVkGetInstanceProcAddr();
     if (!getProc)
     {
-        fprintf(stderr, "native-vk-probe: SDL did not provide vkGetInstanceProcAddr\n");
+        ProbeLog( "native-vk-probe: SDL did not provide vkGetInstanceProcAddr\n");
         return;
     }
     PFN_vkCreateInstance createInstance =
         (PFN_vkCreateInstance)getProc(VK_NULL_HANDLE, "vkCreateInstance");
     if (!createInstance)
     {
-        fprintf(stderr, "native-vk-probe: vkCreateInstance is unavailable\n");
+        ProbeLog( "native-vk-probe: vkCreateInstance is unavailable\n");
         return;
     }
 
@@ -290,7 +310,7 @@ void ProbeVulkanCapabilities()
     VkResult result = createInstance(&createInfo, nullptr, &instance);
     if (result != VK_SUCCESS || instance == VK_NULL_HANDLE)
     {
-        fprintf(stderr, "native-vk-probe: vkCreateInstance failed (%d)\n", (int)result);
+        ProbeLog( "native-vk-probe: vkCreateInstance failed (%d)\n", (int)result);
         return;
     }
 
@@ -314,7 +334,7 @@ void ProbeVulkanCapabilities()
     if (!destroyInstance || !enumerateDevices || !getProperties || !getFeatures ||
         !getMemory || !getQueues || !getFormat || !enumerateExtensions)
     {
-        fprintf(stderr, "native-vk-probe: one or more instance functions are unavailable\n");
+        ProbeLog( "native-vk-probe: one or more instance functions are unavailable\n");
         if (destroyInstance)
             destroyInstance(instance, nullptr);
         return;
@@ -324,7 +344,7 @@ void ProbeVulkanCapabilities()
     result = enumerateDevices(instance, &deviceCount, nullptr);
     if (result != VK_SUCCESS || deviceCount == 0)
     {
-        fprintf(stderr, "native-vk-probe: no Vulkan physical devices (result=%d count=%u)\n",
+        ProbeLog( "native-vk-probe: no Vulkan physical devices (result=%d count=%u)\n",
             (int)result, deviceCount);
         destroyInstance(instance, nullptr);
         return;
@@ -334,13 +354,13 @@ void ProbeVulkanCapabilities()
     result = enumerateDevices(instance, &deviceCount, devices);
     if (result != VK_SUCCESS)
     {
-        fprintf(stderr, "native-vk-probe: physical-device enumeration failed (%d)\n", (int)result);
+        ProbeLog( "native-vk-probe: physical-device enumeration failed (%d)\n", (int)result);
         delete[] devices;
         destroyInstance(instance, nullptr);
         return;
     }
 
-    fprintf(stderr, "native-vk-probe: found %u physical device(s)\n", deviceCount);
+    ProbeLog( "native-vk-probe: found %u physical device(s)\n", deviceCount);
     for (uint32_t d = 0; d < deviceCount; ++d)
     {
         VkPhysicalDeviceProperties props;
@@ -353,12 +373,12 @@ void ProbeVulkanCapabilities()
         getFeatures(devices[d], &features);
         getMemory(devices[d], &memory);
 
-        fprintf(stderr,
+        ProbeLog(
             "native-vk-probe: GPU[%u] %s vendor=0x%04x device=0x%04x type=%u api=%u.%u.%u driver=%u\n",
             d, props.deviceName, props.vendorID, props.deviceID, (unsigned)props.deviceType,
             VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion),
             VK_VERSION_PATCH(props.apiVersion), props.driverVersion);
-        fprintf(stderr,
+        ProbeLog(
             "native-vk-probe: limits max2D=%u maxImageArray=%u maxUBO=%u maxPush=%u maxBoundSets=%u anisotropy=%u\n",
             props.limits.maxImageDimension2D, props.limits.maxImageArrayLayers,
             props.limits.maxUniformBufferRange, props.limits.maxPushConstantsSize,
@@ -371,13 +391,13 @@ void ProbeVulkanCapabilities()
         {
             getQueues(devices[d], &queueCount, queues);
             for (uint32_t q = 0; q < queueCount; ++q)
-                fprintf(stderr, "native-vk-probe: GPU[%u] queue[%u] flags=0x%x count=%u timestampBits=%u\n",
+                ProbeLog( "native-vk-probe: GPU[%u] queue[%u] flags=0x%x count=%u timestampBits=%u\n",
                     d, q, queues[q].queueFlags, queues[q].queueCount, queues[q].timestampValidBits);
         }
         delete[] queues;
 
         for (uint32_t h = 0; h < memory.memoryHeapCount; ++h)
-            fprintf(stderr, "native-vk-probe: GPU[%u] heap[%u] size=%lluMiB flags=0x%x\n",
+            ProbeLog( "native-vk-probe: GPU[%u] heap[%u] size=%lluMiB flags=0x%x\n",
                 d, h, (unsigned long long)(memory.memoryHeaps[h].size / (1024 * 1024)),
                 memory.memoryHeaps[h].flags);
 
@@ -394,7 +414,7 @@ void ProbeVulkanCapabilities()
             }
             delete[] extensions;
         }
-        fprintf(stderr, "native-vk-probe: GPU[%u] VK_KHR_swapchain=%s\n", d, swapchain ? "yes" : "no");
+        ProbeLog( "native-vk-probe: GPU[%u] VK_KHR_swapchain=%s\n", d, swapchain ? "yes" : "no");
 
         const VkFormat formats[] = {
             VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8A8_UNORM,
@@ -407,16 +427,36 @@ void ProbeVulkanCapabilities()
             VkFormatProperties fp;
             memset(&fp, 0, sizeof(fp));
             getFormat(devices[d], formats[i], &fp);
-            fprintf(stderr, "native-vk-probe: GPU[%u] format[%s] linear=0x%x optimal=0x%x buffer=0x%x\n",
+            ProbeLog( "native-vk-probe: GPU[%u] format[%s] linear=0x%x optimal=0x%x buffer=0x%x\n",
                 d, formatNames[i], fp.linearTilingFeatures, fp.optimalTilingFeatures, fp.bufferFeatures);
         }
     }
 
     delete[] devices;
     destroyInstance(instance, nullptr);
-    fprintf(stderr, "native-vk-probe: complete (no VkDevice/surface/swapchain created)\n");
+    ProbeLog( "native-vk-probe: complete (no VkDevice/surface/swapchain created)\n");
 }
 }
+
+extern "C" int bo1_native_video_write_vulkan_probe_log(const char *path)
+{
+    if (!path || !path[0]) return 0;
+    FILE *file = fopen(path, "w");
+    if (!file) return 0;
+    if (!s_vulkanProbeAttempted)
+    {
+        fputs("BO1 Vulkan capability probe\n=============================\n", file);
+        fputs("The Vulkan probe has not run in this session. Select Vulkan and start/restart the game to collect capabilities.\n", file);
+    }
+    else if (s_vulkanProbeLog.empty())
+        fputs("The Vulkan probe ran but produced no diagnostic records.\n", file);
+    else
+        fwrite(s_vulkanProbeLog.data(), 1, s_vulkanProbeLog.size(), file);
+    const int ok = fflush(file) == 0;
+    fclose(file);
+    return ok ? 1 : 0;
+}
+
 
 // The Vulkan renderer's window (src/native/vk/bo1vk_dxvk.cpp): the same window as CreateContext makes, without a GL
 // context. DXVK's SDL2 window system creates the surface and the swap chain on it. Called again on a mode change.
