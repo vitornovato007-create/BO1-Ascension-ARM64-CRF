@@ -59,13 +59,14 @@ int bo1_native_list_dir(const char *path, int index, int wantFolders, char *name
 int bo1_native_read_line(const char *path, char *text, int size);
 int bo1_native_write_line(const char *path, const char *text);
 void bo1_native_send_log(const char *homePath);
+void bo1_native_export_vulkan_probe_log(const char *homePath);
 void bo1_native_restart_at_exit(const char *basePath, const char *homePath, const char *args);
 }
 
 namespace
 {
 enum RowKind { CHOICE, NUMBER, ACTION, TEXT, MOD, DXVK };
-enum ActionId { ACT_NONE, ACT_EDIT_TOUCH, ACT_RESET_TOUCH, ACT_JOIN, ACT_CLOSE, ACT_PLAY, ACT_LOG };
+enum ActionId { ACT_NONE, ACT_EDIT_TOUCH, ACT_RESET_TOUCH, ACT_JOIN, ACT_CLOSE, ACT_PLAY, ACT_LOG, ACT_VULKAN_LOG };
 
 struct Row
 {
@@ -113,6 +114,7 @@ const Row kRows[] = {
     { "PLAYER NAME", TEXT, "name", 0, 0, 0, 0, 0, 0, 0, ACT_NONE },
     { "JOIN A GAME BY ADDRESS", ACTION, 0, 0, 0, 0, 0, 0, 0, 0, ACT_JOIN },
     { "SEND LOG", ACTION, 0, 0, 0, 0, 0, 0, 0, 0, ACT_LOG },
+    { "EXPORT VULKAN PROBE LOG", ACTION, 0, 0, 0, 0, 0, 0, 0, 0, ACT_VULKAN_LOG },
     { "CLOSE", ACTION, 0, 0, 0, 0, 0, 0, 0, 0, ACT_CLOSE },
 };
 const int kRowCount = (int)(sizeof(kRows) / sizeof(kRows[0]));
@@ -314,6 +316,10 @@ void Change(int direction)
         else if (row.action == ACT_LOG)
         {
             bo1_native_send_log(fs_homepath ? fs_homepath->current.string : "");
+        }
+        else if (row.action == ACT_VULKAN_LOG)
+        {
+            bo1_native_export_vulkan_probe_log(fs_homepath ? fs_homepath->current.string : "");
         }
         else if (row.action == ACT_CLOSE)
         {
