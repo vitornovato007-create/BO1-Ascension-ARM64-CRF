@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
       p7zip-full e2fsprogs erofs-utils glslang-tools \
       clang-21 lld-21 llvm-21-dev libclang-21-dev libclang-cpp21-dev libc++-21-dev libc++abi-21-dev libunwind-21-dev \
       clang lld llvm libc6-dev \
-      libsdl2-dev libgles-dev libegl-dev libgl1-mesa-dri libegl1 libgles2 libvulkan1 mesa-vulkan-drivers \
+      libsdl2-dev libgles-dev libegl-dev libgl1-mesa-dri libegl1 libgles2 libvulkan1 libvulkan-dev mesa-vulkan-drivers \
       openjdk-21-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /bo1/src
