@@ -10,6 +10,7 @@
 #include "native_touch.h"
 
 #include <SDL2/SDL.h>
+#include <vulkan/vulkan.h>
 #include <SDL2/SDL_vulkan.h>
 #include <d3d9shim.h>
 #include <pthread.h>
