@@ -278,7 +278,7 @@ void ProbeVulkanCapabilities()
     ProbeLog("BO1 Vulkan capability probe\n");
     ProbeLog("=============================\n");
 
-    PFN_vkGetInstanceProcAddr getProc = SDL_Vulkan_GetVkGetInstanceProcAddr();
+    PFN_vkGetInstanceProcAddr getProc = (PFN_vkGetInstanceProcAddr)SDL_Vulkan_GetVkGetInstanceProcAddr();
     if (!getProc)
     {
         ProbeLog( "native-vk-probe: SDL did not provide vkGetInstanceProcAddr\n");
