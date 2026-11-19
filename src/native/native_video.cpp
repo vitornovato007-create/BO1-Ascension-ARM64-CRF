@@ -269,14 +269,14 @@ void ProbeLog(const char *format, ...)
 
 void ProbeVulkanCapabilities()
 {
-    s_vulkanProbeAttempted = true;
-    s_vulkanProbeLog.clear();
-    ProbeLog("BO1 Vulkan capability probe\n");
-    ProbeLog("=============================\n");
     static bool probed = false;
     if (probed)
         return;
     probed = true;
+    s_vulkanProbeAttempted = true;
+    s_vulkanProbeLog.clear();
+    ProbeLog("BO1 Vulkan capability probe\n");
+    ProbeLog("=============================\n");
 
     PFN_vkGetInstanceProcAddr getProc = SDL_Vulkan_GetVkGetInstanceProcAddr();
     if (!getProc)
