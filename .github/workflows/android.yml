@@ -47,7 +47,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/bo1-work/llvm
-          key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch', 'tools/native/docker/Dockerfile') }}
+          # LLVM depends on its build script and patches, not on Docker's apt package list.
+          key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch') }}
+          restore-keys: |
+            llvm-21.1.8-ubuntu24-
 
       - name: Build engine and APK
         id: build
@@ -118,7 +121,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/bo1-work/llvm
-          key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch', 'tools/native/docker/Dockerfile') }}
+          key: llvm-21.1.8-ubuntu24-${{ hashFiles('tools/native/build-llvm.sh', 'tools/p32/*.patch') }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
