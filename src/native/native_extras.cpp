@@ -23,6 +23,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string>
+
+extern "C" int bo1_native_video_write_vulkan_probe_log(const char *path);
 #include <vector>
 
 #ifdef __ANDROID__
@@ -189,6 +191,21 @@ extern "C" void bo1_native_send_log(const char *homePath)
 #else
     (void)homePath;
     printf("native: send log: the log is this program's output (stdout / stderr)\n");
+#endif
+}
+
+extern "C" void bo1_native_export_vulkan_probe_log(const char *homePath)
+{
+    const std::string path = std::string(homePath ? homePath : "") + "/vulkan_probe.log";
+    if (!bo1_native_video_write_vulkan_probe_log(path.c_str()))
+    {
+        fprintf(stderr, "native-vk-probe: could not write report: %s\\n", path.c_str());
+        return;
+    }
+#ifdef __ANDROID__
+    CallActivity("shareVulkanProbeLog", path.c_str());
+#else
+    printf("native-vk-probe: report written to %s\\n", path.c_str());
 #endif
 }
 
