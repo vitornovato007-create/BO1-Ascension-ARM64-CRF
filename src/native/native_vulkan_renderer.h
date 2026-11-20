@@ -10,7 +10,8 @@ extern "C" {
 int bo1_native_vulkan_renderer_init(void *sdl_window);
 
 // Acquires, clears and presents one swapchain image. RGB components are in [0, 1].
-// This is a V0 clear-pass test, not yet the game's D3D9 renderer.
+// Handles drawable-size changes and VK_ERROR_OUT_OF_DATE_KHR by rebuilding swapchain resources.
+// This remains a WSI clear-pass foundation, not yet the game's D3D9 renderer.
 int bo1_native_vulkan_renderer_present(float red, float green, float blue);
 
 // Waits for the device and releases every Vulkan object owned by this module.
