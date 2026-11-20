@@ -51,6 +51,7 @@ bool s_grabbed;
 bool s_windowIsVulkan;
 SDL_Window *s_nativeVkTestWindow;
 bool s_nativeVkTestActive;
+bool s_nativeVkTestLoaderLoaded;
 
 bool InitVideo()
 {
@@ -114,6 +115,7 @@ int CreateContext(int width, int height)
     }
 #endif
 #ifdef __ANDROID__
+    s_nativeVkTestLoaderLoaded = true;
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     SDL_ShowCursor(SDL_DISABLE);   // no system pointer over the game (a mouse or a touch pad still moves the game's own)
 #endif
@@ -608,7 +610,8 @@ extern "C" int bo1_native_video_native_vulkan_test_start(int width, int height)
     if (!s_nativeVkTestWindow)
     {
         fprintf(stderr, "native-vk-test: SDL_CreateWindow failed: %s\n", SDL_GetError());
-        SDL_Vulkan_UnloadLibrary();
+        if (s_nativeVkTestLoaderLoaded) SDL_Vulkan_UnloadLibrary();
+        s_nativeVkTestLoaderLoaded = false;
         return 0;
     }
     if (!bo1_native_vulkan_renderer_init(s_nativeVkTestWindow))
@@ -651,7 +654,8 @@ extern "C" void bo1_native_video_native_vulkan_test_stop(void)
     }
     // The test lifecycle loaded SDL's Vulkan loader itself and is only allowed to run
     // before another renderer window exists, so it can safely release that loader here.
-    SDL_Vulkan_UnloadLibrary();
+    if (s_nativeVkTestLoaderLoaded) SDL_Vulkan_UnloadLibrary();
+    s_nativeVkTestLoaderLoaded = false;
     fprintf(stderr, "native-vk-test: STOPPED\n");
 #endif
 }
