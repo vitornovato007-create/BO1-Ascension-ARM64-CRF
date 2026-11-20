@@ -303,7 +303,7 @@ int SDL_main(int argc, char **argv)
     {
         Say("game files not found or inaccessible at selected path: %s (expected localization.txt and zone/)", game);
         static char message[1400];
-        snprintf(message, sizeof(message), "Game files not found or inaccessible.\\n\\nThe selected folder must contain localization.txt and zone/:\\n\\n%s\\n\\nGrant file access and select the original game folder again.", game);
+        snprintf(message, sizeof(message), "Game files not found or inaccessible.\n\nThe selected folder must contain localization.txt and zone/:\n\n%s\n\nGrant file access and select the original game folder again.", game);
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Black Ops", message, NULL);
         return 1;
     }
