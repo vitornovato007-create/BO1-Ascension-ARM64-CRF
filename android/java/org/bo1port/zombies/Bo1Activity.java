@@ -63,7 +63,12 @@ public class Bo1Activity extends SDLActivity {
         }
         String renderer = getIntent().getStringExtra("bo1.renderer");
         if (renderer == null) renderer = "dxvk";
-        return new String[] { "--refresh=" + refresh, "--rates=" + supportedRates(), "--renderer=" + renderer };
+        String gamePath = getIntent().getStringExtra("bo1.game_path");
+        if (gamePath == null || gamePath.isEmpty()) {
+            gamePath = getSharedPreferences("bo1_launcher", MODE_PRIVATE).getString("game_path", "");
+        }
+        if (gamePath == null || gamePath.isEmpty()) gamePath = "/nonexistent/bo1-game-folder";
+        return new String[] { "--refresh=" + refresh, "--rates=" + supportedRates(), "--renderer=" + renderer, "--game-dir=" + gamePath };
     }
 
     /** The display's refresh rates at the current resolution, ascending: "60,90,120". */
