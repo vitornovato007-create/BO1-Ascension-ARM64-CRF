@@ -270,16 +270,8 @@ public class LauncherActivity extends Activity {
         startButton.setBackground(shape(Color.rgb(36, 126, 91), 0));
         startButton.setOnClickListener(v -> {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_RENDERER, selected).apply();
-            if (NATIVE.equals(selected)) {
-                new AlertDialog.Builder(this)
-                    .setTitle("Vulkan Nativo v0.1 — experimental")
-                    .setMessage("A base Vulkan ainda não está ligada ao renderizador D3D9 do Black Ops. Selecione DXVK Native 1.9.2 para jogar.")
-                    .setPositiveButton("Entendi", null)
-                    .show();
-                return;
-            }
             Intent game = new Intent(this, Bo1Activity.class);
-            game.putExtra("bo1.renderer", DXVK);
+            game.putExtra("bo1.renderer", selected);
             game.putExtra("bo1.game_path", selectedGamePath());
             startActivity(game);
         });
