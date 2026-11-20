@@ -115,7 +115,7 @@ static int Reserve(uintptr_t start, uintptr_t size)
 }
 
 // Loads the engine library into low memory and runs it. Returns the engine's exit code, or a negative number.
-static int BootRun(const char *libraryPath, int argc, char **argv)
+static int BootRun(const char *libraryPath, int argc, char **argv, int nativeVulkanPreflight)
 {
     struct Range ranges[64];
     const int count = FindLowRanges(ranges, 64);
@@ -204,6 +204,36 @@ static int BootRun(const char *libraryPath, int argc, char **argv)
     {
         Say("%s was loaded at %p, not in the reserved range", libraryPath, (void *)(uintptr_t)entry);
         return -6;
+    }
+    if (nativeVulkanPreflight)
+    {
+        typedef int (*VulkanTestStart)(int, int);
+        typedef int (*VulkanTestFrame)(void);
+        typedef void (*VulkanTestStop)(void);
+        VulkanTestStart testStart = (VulkanTestStart)dlsym(library, "bo1_native_video_native_vulkan_test_start");
+        VulkanTestFrame testFrame = (VulkanTestFrame)dlsym(library, "bo1_native_video_native_vulkan_test_frame");
+        VulkanTestStop testStop = (VulkanTestStop)dlsym(library, "bo1_native_video_native_vulkan_test_stop");
+        if (!testStart || !testFrame || !testStop)
+        {
+            Say("native Vulkan preflight unavailable: test lifecycle symbols missing");
+            return -7;
+        }
+        Say("native Vulkan preflight: starting before BO1 engine entry");
+        if (!testStart(1280, 720))
+        {
+            Say("native Vulkan preflight FAILED during SDL/Vulkan device/swapchain initialization");
+            testStop();
+            return -7;
+        }
+        if (!testFrame())
+        {
+            Say("native Vulkan preflight FAILED during acquire/clear/submit/present");
+            testStop();
+            return -7;
+        }
+        testStop();
+        Say("native Vulkan preflight PASSED: WSI clear frame presented; BO1 D3D9 scene renderer is still not connected");
+        return -8;
     }
     Say("engine entry at %p", (void *)(uintptr_t)entry);
     return entry(argc, argv);
@@ -325,6 +355,7 @@ int SDL_main(int argc, char **argv)
     engineArgv[engineArgc++] = (char *)"0";
     // (from the activity: --refresh=<the display's highest refresh rate>, Bo1Activity.getArguments)
     int refresh = 0;
+    int nativeVulkanPreflight = 0;
     for (int i = 1; i < argc && engineArgc < 95; ++i)
     {
         if (!strncmp(argv[i], "--refresh=", 10))
@@ -341,12 +372,8 @@ int SDL_main(int argc, char **argv)
             }
             else if (!strcmp(renderer, "native-vulkan"))
             {
-                Say("Launcher renderer selection: Vulkan Native v0.1");
-                Say("Vulkan Native v0.1 is not connected to the BO1 D3D9 renderer yet; refusing to silently fall back to DXVK.");
-                SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Vulkan Nativo v0.1",
-                    "A base Vulkan/WSI existe, mas a renderizacao D3D9 do Black Ops ainda nao esta conectada. "
-                    "O motor nao sera iniciado neste modo para evitar usar DXVK sem avisar. Selecione DXVK Native 1.9.2 para jogar.", NULL);
-                return 0;
+                nativeVulkanPreflight = 1;
+                Say("Launcher renderer selection: Vulkan Native v0.1 (preflight requested)");
             }
             else
                 Say("Ignoring unknown launcher renderer: %s", renderer);
@@ -499,7 +526,13 @@ int SDL_main(int argc, char **argv)
         }
     }
 
-    const int result = BootRun(library, engineArgc, engineArgv);
+    const int result = BootRun(library, engineArgc, engineArgv, nativeVulkanPreflight);
+    if (result == -7)
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Vulkan Nativo — falha no teste",
+            "A inicializacao do Vulkan nativo falhou antes do motor do jogo. Consulte bo1.log. O motor nao foi iniciado e nenhum fallback para DXVK foi aplicado.", NULL);
+    else if (result == -8)
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Vulkan Nativo — teste concluido",
+            "O Vulkan conseguiu criar o dispositivo, a swapchain e apresentar um quadro de teste. Porem, o renderizador D3D9 que desenha a cena do BO1 ainda nao esta conectado. Por seguranca, o motor do jogo nao foi iniciado. Consulte bo1.log.", NULL);
     Say("engine returned %d", result);
     if (result < 0)
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Black Ops",
