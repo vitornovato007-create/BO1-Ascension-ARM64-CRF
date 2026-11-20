@@ -123,8 +123,8 @@ static int s_lowMemoryPrepared;
 
 static int PrepareLowMemory(void)
 {
-        if (s_lowMemoryPrepared)
-            return 1;
+    if (s_lowMemoryPrepared)
+        return 1;
     struct Range ranges[64];
     const int count = FindLowRanges(ranges, 64);
     if (count < 0)
@@ -189,11 +189,9 @@ static int PrepareLowMemory(void)
     setenv("BO1_LOWMEM_RESERVED", "1", 1);
     Say("low memory: library at %p (%lu MB reserved), heap at %p (%lu MB), page size %ld", (void *)imageBase,
         (unsigned long)(IMAGE_RESERVE >> 20), (void *)heapBase, (unsigned long)(heapSize >> 20), sysconf(_SC_PAGESIZE));
-    const uintptr_t start = imageBase;
-
-        s_engineImageBase = imageBase;
-        s_lowMemoryPrepared = 1;
-        return 1;
+    s_engineImageBase = imageBase;
+    s_lowMemoryPrepared = 1;
+    return 1;
 }
 
 static int BootRun(const char *libraryPath, int argc, char **argv, int nativeVulkanPreflight)
