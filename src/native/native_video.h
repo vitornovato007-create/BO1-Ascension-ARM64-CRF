@@ -17,6 +17,12 @@ void bo1_native_video_pump(void);
 // The caller owns the returned window and must destroy it before another renderer window is created.
 void *bo1_native_video_vulkan_window(int width, int height);
 
+// Isolated Android-only native Vulkan bring-up test. Start before creating any game/DXVK window.
+// Each frame presents a diagnostic clear color; this does not render BO1 geometry or D3D9 commands.
+int bo1_native_video_native_vulkan_test_start(int width, int height);
+int bo1_native_video_native_vulkan_test_frame(void);
+void bo1_native_video_native_vulkan_test_stop(void);
+
 // Game controllers (native_gamepad.cpp): reads SDL's controllers into the bo1_gamepad array the engine's pad
 // backend reads, and plays the rumble it asks for. Called once per frame on the window's thread.
 void bo1_native_gamepad_update(void);
