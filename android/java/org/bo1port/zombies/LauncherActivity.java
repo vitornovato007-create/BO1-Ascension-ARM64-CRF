@@ -9,8 +9,11 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.DocumentsContract;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -19,25 +22,20 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-/** Android launcher: renderer choice and user-selected game folder import. */
+
+/** Android launcher: renderer choice and direct access to the original game folder. */
 public class LauncherActivity extends Activity {
     private static final String PREFS = "bo1_launcher";
     private static final String KEY_RENDERER = "renderer";
-    private static final String KEY_TREE = "game_tree_uri";
+    private static final String KEY_GAME_PATH = "game_path";
     private static final int REQUEST_GAME_FOLDER = 4102;
     private static final String DXVK = "dxvk";
     private static final String NATIVE = "native-vulkan";
 
     private String selected = DXVK;
     private TextView dxvkCard, nativeCard, status, folderStatus;
-    private Button startButton, folderButton;
-    private final ExecutorService importer = Executors.newSingleThreadExecutor();
+    private Button startButton, folderButton, accessButton;
 
     private int dp(float value) {
         return (int)(value * getResources().getDisplayMetrics().density + 0.5f);
@@ -82,32 +80,41 @@ public class LauncherActivity extends Activity {
         return card;
     }
 
-    private File gameDirectory() {
-        File files = getExternalFilesDir(null);
-        return new File(files != null ? files : getFilesDir(), "game");
+    private boolean hasAllFilesAccess() {
+        return Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager();
+    }
+
+    private String selectedGamePath() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_GAME_PATH, "");
     }
 
     private boolean hasGameFiles() {
-        File game = gameDirectory();
+        String path = selectedGamePath();
+        if (path == null || path.isEmpty() || !hasAllFilesAccess()) return false;
+        File game = new File(path);
         return new File(game, "localization.txt").isFile() && new File(game, "zone").isDirectory();
     }
 
     private void updateFolderStatus() {
         if (folderStatus == null) return;
-        if (hasGameFiles()) {
-            folderStatus.setText("Arquivos do jogo prontos. Pasta interna: " + gameDirectory().getAbsolutePath());
-            folderStatus.setTextColor(Color.rgb(154, 220, 184));
-            if (startButton != null) {
-                startButton.setEnabled(true);
-                startButton.setAlpha(1.0f);
-            }
-        } else {
-            folderStatus.setText("Nenhuma instalação válida selecionada. Escolha a pasta que contém localization.txt e zone/.");
+        if (!hasAllFilesAccess()) {
+            folderStatus.setText("Permita o acesso a todos os arquivos para o motor ler diretamente a pasta original do jogo.");
             folderStatus.setTextColor(Color.rgb(255, 202, 112));
-            if (startButton != null) {
-                startButton.setEnabled(false);
-                startButton.setAlpha(0.55f);
-            }
+        } else if (hasGameFiles()) {
+            folderStatus.setText("Pasta do jogo: " + selectedGamePath() + "\\nLeitura direta ativada — nenhum arquivo será copiado.");
+            folderStatus.setTextColor(Color.rgb(154, 220, 184));
+        } else {
+            folderStatus.setText("Nenhuma pasta válida selecionada. Escolha a pasta que contém localization.txt e zone/.");
+            folderStatus.setTextColor(Color.rgb(255, 202, 112));
+        }
+        if (startButton != null) {
+            startButton.setEnabled(hasGameFiles());
+            startButton.setAlpha(hasGameFiles() ? 1.0f : 0.55f);
+        }
+        if (accessButton != null) {
+            accessButton.setText(hasAllFilesAccess() ? "ACESSO AOS ARQUIVOS PERMITIDO" : "PERMITIR ACESSO A TODOS OS ARQUIVOS");
+            accessButton.setEnabled(!hasAllFilesAccess());
+            accessButton.setAlpha(hasAllFilesAccess() ? 0.65f : 1.0f);
         }
     }
 
@@ -123,10 +130,47 @@ public class LauncherActivity extends Activity {
         status.setTextColor(nativeSelected ? Color.rgb(255, 202, 112) : Color.rgb(154, 220, 184));
     }
 
+    private void requestAllFilesAccess() {
+        if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) {
+            updateFolderStatus();
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Permitir acesso aos arquivos")
+            .setMessage("O Black Ops precisa ler diretamente os arquivos da pasta que você escolher. Ative \"Permitir gerenciamento de todos os arquivos\" na próxima tela. O aplicativo não copiará nem moverá os arquivos do jogo.")
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Abrir configurações", (dialog, which) -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                }
+            }).show();
+    }
+
     private void chooseGameFolder() {
+        if (!hasAllFilesAccess()) {
+            requestAllFilesAccess();
+            return;
+        }
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQUEST_GAME_FOLDER);
+    }
+
+    private String filesystemPathFromTree(Uri tree) throws Exception {
+        String documentId = DocumentsContract.getTreeDocumentId(tree);
+        int separator = documentId.indexOf(':');
+        if (separator <= 0) throw new Exception("O Android não informou um volume de armazenamento reconhecido.");
+        String volume = documentId.substring(0, separator);
+        String relative = documentId.substring(separator + 1);
+        File volumeRoot = "primary".equalsIgnoreCase(volume)
+            ? Environment.getExternalStorageDirectory() : new File("/storage", volume);
+        File selectedFolder = relative.isEmpty() ? volumeRoot : new File(volumeRoot, relative);
+        String canonical = selectedFolder.getCanonicalPath();
+        if (!selectedFolder.isDirectory()) throw new Exception("Não foi possível acessar o caminho físico da pasta selecionada.");
+        return canonical;
     }
 
     @Override
@@ -134,119 +178,22 @@ public class LauncherActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQUEST_GAME_FOLDER || resultCode != RESULT_OK || data == null || data.getData() == null)
             return;
-
         Uri tree = data.getData();
-        final int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         try {
-            getContentResolver().takePersistableUriPermission(tree, flags);
-        } catch (Exception ignored) {
-            // The current grant can still be used for this import.
-        }
-
-        folderButton.setEnabled(false);
-        startButton.setEnabled(false);
-        folderStatus.setText("Lendo a pasta selecionada...");
-        folderStatus.setTextColor(Color.WHITE);
-
-        importer.execute(() -> {
-            try {
-                Uri root = DocumentsContract.buildDocumentUriUsingTree(
-                    tree, DocumentsContract.getTreeDocumentId(tree));
-                if (!containsGameMarker(root))
-                    throw new Exception("A pasta escolhida não contém localization.txt e a pasta zone/. Selecione a pasta principal da instalação do Black Ops.");
-
-                File destination = gameDirectory();
-                if (!destination.exists() && !destination.mkdirs())
-                    throw new Exception("Não foi possível criar a pasta interna do jogo.");
-
-                copyDirectory(tree, root, destination);
-                runOnUiThread(() -> {
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_TREE, tree.toString()).apply();
-                    folderStatus.setText("Importação concluída. Os arquivos foram copiados para a pasta do aplicativo.");
-                    folderStatus.setTextColor(Color.rgb(154, 220, 184));
-                    folderButton.setEnabled(true);
-                    updateFolderStatus();
-                });
-            } catch (Exception e) {
-                final String message = e.getMessage() != null ? e.getMessage() : e.toString();
-                runOnUiThread(() -> {
-                    folderButton.setEnabled(true);
-                    folderStatus.setText("Falha ao importar: " + message);
-                    folderStatus.setTextColor(Color.rgb(255, 150, 130));
-                    updateFolderStatus();
-                    new AlertDialog.Builder(this)
-                        .setTitle("Não foi possível importar a pasta")
-                        .setMessage(message)
-                        .setPositiveButton("OK", null)
-                        .show();
-                });
-            }
-        });
-    }
-
-    private boolean containsGameMarker(Uri document) {
-        Cursor cursor = null;
-        boolean localization = false, zone = false;
-        try {
-            Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(
-                document, DocumentsContract.getDocumentId(document));
-            cursor = getContentResolver().query(children,
-                new String[] { DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                    DocumentsContract.Document.COLUMN_MIME_TYPE }, null, null, null);
-            if (cursor == null) return false;
-            while (cursor.moveToNext()) {
-                String name = cursor.getString(0);
-                String mime = cursor.getString(1);
-                if ("localization.txt".equalsIgnoreCase(name)) localization = true;
-                if ("zone".equalsIgnoreCase(name) &&
-                    DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) zone = true;
-            }
-        } catch (Exception ignored) {
-            return false;
-        } finally {
-            if (cursor != null) cursor.close();
-        }
-        return localization && zone;
-    }
-
-    private void copyDirectory(Uri tree, Uri directory, File destination) throws Exception {
-        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(
-            tree, DocumentsContract.getDocumentId(directory));
-        Cursor cursor = getContentResolver().query(children,
-            new String[] { DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-                DocumentsContract.Document.COLUMN_MIME_TYPE }, null, null, null);
-        if (cursor == null) throw new Exception("O Android não conseguiu listar o conteúdo da pasta.");
-        try {
-            while (cursor.moveToNext()) {
-                String id = cursor.getString(0);
-                String name = cursor.getString(1);
-                String mime = cursor.getString(2);
-                if (name == null || name.length() == 0 || name.equals(".") || name.equals(".."))
-                    continue;
-                Uri child = DocumentsContract.buildDocumentUriUsingTree(tree, id);
-                File output = new File(destination, name);
-                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
-                    if (!output.exists() && !output.mkdirs())
-                        throw new Exception("Não foi possível criar a pasta " + name);
-                    copyDirectory(tree, child, output);
-                } else {
-                    InputStream input = getContentResolver().openInputStream(child);
-                    if (input == null) throw new Exception("Não foi possível ler o arquivo " + name);
-                    OutputStream out = new FileOutputStream(output);
-                    try {
-                        byte[] buffer = new byte[1024 * 1024];
-                        int count;
-                        while ((count = input.read(buffer)) != -1) out.write(buffer, 0, count);
-                        out.flush();
-                    } finally {
-                        try { input.close(); } catch (Exception ignored) {}
-                        try { out.close(); } catch (Exception ignored) {}
-                    }
-                }
-            }
-        } finally {
-            cursor.close();
+            getContentResolver().takePersistableUriPermission(tree,
+                data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+            String path = filesystemPathFromTree(tree);
+            File game = new File(path);
+            if (!new File(game, "localization.txt").isFile() || !new File(game, "zone").isDirectory())
+                throw new Exception("A pasta escolhida não contém localization.txt e zone/. Selecione a pasta principal da instalação do Black Ops.");
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_GAME_PATH, path).apply();
+            folderStatus.setText("Pasta selecionada. O jogo lerá os arquivos diretamente, sem copiá-los.");
+            updateFolderStatus();
+        } catch (Exception e) {
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            new AlertDialog.Builder(this).setTitle("Não foi possível usar essa pasta")
+                .setMessage(message + "\\n\\nEscolha uma pasta no armazenamento interno compartilhado ou em um volume externo acessível.")
+                .setPositiveButton("OK", null).show();
         }
     }
 
@@ -279,6 +226,12 @@ public class LauncherActivity extends Activity {
         TextView folderHeading = text("ARQUIVOS DO JOGO", 13, true, Color.WHITE);
         folderHeading.setGravity(Gravity.CENTER_VERTICAL);
         add(root, folderHeading, -1, 28, 12);
+
+        accessButton = new Button(this);
+        accessButton.setTextSize(12);
+        accessButton.setAllCaps(false);
+        add(root, accessButton, -1, 42, 4);
+        accessButton.setOnClickListener(v -> requestAllFilesAccess());
 
         folderButton = new Button(this);
         folderButton.setText("SELECIONAR PASTA DO JOGO");
@@ -328,19 +281,20 @@ public class LauncherActivity extends Activity {
             }
             Intent game = new Intent(this, Bo1Activity.class);
             game.putExtra("bo1.renderer", DXVK);
+            game.putExtra("bo1.game_path", selectedGamePath());
             startActivity(game);
         });
         add(root, startButton, -1, 48, 12);
         updateFolderStatus();
 
-        TextView footer = text("A pasta escolhida é importada para o armazenamento do aplicativo.", 10, false, Color.rgb(125, 137, 154));
+        TextView footer = text("Os arquivos são lidos diretamente da pasta original. Nenhuma cópia é criada.", 10, false, Color.rgb(125, 137, 154));
         add(root, footer, -1, 28, 6);
         setContentView(scroll);
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        importer.shutdown();
+    protected void onResume() {
+        super.onResume();
+        updateFolderStatus();
     }
 }
