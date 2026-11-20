@@ -533,7 +533,7 @@ extern "C" void *bo1_native_video_vulkan_window(int width, int height)
     {
         if (!s_windowIsVulkan)
         {
-            fprintf(stderr, "native-vk-window: REFUSE existing SDL window: it was created for OpenGL ES, not Vulkan\\n");
+            fprintf(stderr, "native-vk-window: REFUSE existing SDL window: it was created for OpenGL ES, not Vulkan\n");
             return nullptr;
         }
         if (!s_displayWindow)
@@ -578,7 +578,7 @@ extern "C" void bo1_native_video_vulkan_close(void)
     {
         if (!s_windowIsVulkan)
         {
-            fprintf(stderr, "native-vk-window: close ignored: active SDL window is not Vulkan\\n");
+            fprintf(stderr, "native-vk-window: close ignored: active SDL window is not Vulkan\n");
             SDL_Vulkan_UnloadLibrary();
             return;
         }
