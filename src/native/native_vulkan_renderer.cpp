@@ -32,6 +32,8 @@ struct Renderer
     VkSemaphore acquired = VK_NULL_HANDLE;
     VkSemaphore rendered = VK_NULL_HANDLE;
     VkFence fence = VK_NULL_HANDLE;
+    SDL_Window *window = nullptr;
+    bool recreateSwapchain = false;
     std::vector<VkImage> images;
     std::vector<VkImageView> views;
     std::vector<VkFramebuffer> framebuffers;
@@ -62,20 +64,33 @@ bool HasSwapchain(VkPhysicalDevice physical)
     return false;
 }
 
+void DestroySwapchainResources()
+{
+    if (!g.device) return;
+    for (VkFramebuffer f : g.framebuffers)
+        if (f) vkDestroyFramebuffer(g.device, f, nullptr);
+    g.framebuffers.clear();
+    if (g.renderPass) vkDestroyRenderPass(g.device, g.renderPass, nullptr);
+    g.renderPass = VK_NULL_HANDLE;
+    for (VkImageView v : g.views)
+        if (v) vkDestroyImageView(g.device, v, nullptr);
+    g.views.clear();
+    g.images.clear();
+    if (g.swapchain) vkDestroySwapchainKHR(g.device, g.swapchain, nullptr);
+    g.swapchain = VK_NULL_HANDLE;
+    g.format = VK_FORMAT_UNDEFINED;
+    g.extent = {};
+}
+
 void Destroy()
 {
     if (g.device)
         vkDeviceWaitIdle(g.device);
-    for (VkFramebuffer f : g.framebuffers)
-        if (f) vkDestroyFramebuffer(g.device, f, nullptr);
-    if (g.renderPass) vkDestroyRenderPass(g.device, g.renderPass, nullptr);
-    for (VkImageView v : g.views)
-        if (v) vkDestroyImageView(g.device, v, nullptr);
+    DestroySwapchainResources();
     if (g.acquired) vkDestroySemaphore(g.device, g.acquired, nullptr);
     if (g.rendered) vkDestroySemaphore(g.device, g.rendered, nullptr);
     if (g.fence) vkDestroyFence(g.device, g.fence, nullptr);
     if (g.commandPool) vkDestroyCommandPool(g.device, g.commandPool, nullptr);
-    if (g.swapchain) vkDestroySwapchainKHR(g.device, g.swapchain, nullptr);
     if (g.device) vkDestroyDevice(g.device, nullptr);
     if (g.surface && g.instance) vkDestroySurfaceKHR(g.instance, g.surface, nullptr);
     if (g.instance) vkDestroyInstance(g.instance, nullptr);
@@ -84,6 +99,7 @@ void Destroy()
 
 bool CreateSwapchain(SDL_Window *window)
 {
+    DestroySwapchainResources();
     VkSurfaceCapabilitiesKHR caps{};
     VkResult r = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g.physical, g.surface, &caps);
     if (r != VK_SUCCESS) { Log("surface capabilities failed", r); return false; }
@@ -209,6 +225,7 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     if (g.initialized) return 1;
     SDL_Window *window = static_cast<SDL_Window *>(sdlWindow);
     if (!window) { Log("init rejected: SDL window is null"); return 0; }
+    g.window = window;
     uint32_t extCount = 0;
     if (!SDL_Vulkan_GetInstanceExtensions(window, &extCount, nullptr)) { Log(SDL_GetError()); return 0; }
     std::vector<const char *> extensions(extCount);
@@ -288,20 +305,44 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     { Log("fence creation failed"); Destroy(); return 0; }
     g.initialized = true;
     VkPhysicalDeviceProperties props{}; vkGetPhysicalDeviceProperties(g.physical, &props);
-    fprintf(stderr, "native-vk-renderer: initialized GPU=%s extent=%ux%u images=%zu\n",
+    fprintf(stderr, "native-vk-renderer: initialized GPU=%s extent=%ux%u images=%zu frames=1\n",
         props.deviceName, g.extent.width, g.extent.height, g.images.size());
     return 1;
 }
 
 extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float blue)
 {
-    if (!g.initialized) return 0;
+    if (!g.initialized || !g.window) return 0;
+
+    int drawableWidth = 0, drawableHeight = 0;
+    SDL_Vulkan_GetDrawableSize(g.window, &drawableWidth, &drawableHeight);
+    // Android can temporarily report a zero-sized surface while the app is paused or its window is recreated.
+    if (drawableWidth <= 0 || drawableHeight <= 0)
+        return 1;
+
+    const bool extentChanged = (uint32_t)drawableWidth != g.extent.width ||
+        (uint32_t)drawableHeight != g.extent.height;
+    if (g.recreateSwapchain || extentChanged)
+    {
+        VkResult idle = vkDeviceWaitIdle(g.device);
+        if (idle != VK_SUCCESS) { Log("device idle before swapchain recreation failed", idle); return 0; }
+        if (!CreateSwapchain(g.window)) { Log("swapchain recreation failed"); return 0; }
+        g.recreateSwapchain = false;
+        fprintf(stderr, "native-vk-renderer: swapchain recreated extent=%ux%u images=%zu\n",
+            g.extent.width, g.extent.height, g.images.size());
+    }
+
     VkResult r = vkWaitForFences(g.device, 1, &g.fence, VK_TRUE, UINT64_MAX);
     if (r != VK_SUCCESS) { Log("frame fence wait failed", r); return 0; }
     uint32_t index = 0;
     r = vkAcquireNextImageKHR(g.device, g.swapchain, UINT64_MAX, g.acquired, VK_NULL_HANDLE, &index);
-    if (r == VK_ERROR_OUT_OF_DATE_KHR) { Log("swapchain out of date; recreate on next integration step"); return 0; }
+    if (r == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        g.recreateSwapchain = true;
+        return 1; // the next frame rebuilds the swapchain after waiting for the device
+    }
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) { Log("image acquisition failed", r); return 0; }
+    const bool acquiredSuboptimal = r == VK_SUBOPTIMAL_KHR;
     r = vkResetFences(g.device, 1, &g.fence);
     if (r != VK_SUCCESS) { Log("fence reset failed", r); Destroy(); return 0; }
     r = vkResetCommandBuffer(g.command, 0);
@@ -332,10 +373,12 @@ extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float 
     r = vkQueuePresentKHR(g.queue, &present);
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR && r != VK_ERROR_OUT_OF_DATE_KHR)
     { Log("queue present failed", r); Destroy(); return 0; }
-    // Conservative single-queue synchronization for this bring-up backend. Replace with per-frame fences/semaphores
-    // and multiple frames in flight before performance tuning.
-    r = vkQueueWaitIdle(g.queue);
-    if (r != VK_SUCCESS) { Log("queue idle failed", r); Destroy(); return 0; }
+    // Keep the single-frame synchronization conservative until per-image present semaphores are introduced.
+    // This avoids re-signalling a binary semaphore before the presentation engine has consumed its wait.
+    VkResult presentIdle = vkQueueWaitIdle(g.queue);
+    if (presentIdle != VK_SUCCESS) { Log("queue idle failed", presentIdle); Destroy(); return 0; }
+    if (acquiredSuboptimal || r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR)
+        g.recreateSwapchain = true;
     return 1;
 }
 
