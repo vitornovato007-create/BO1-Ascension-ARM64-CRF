@@ -321,6 +321,26 @@ int SDL_main(int argc, char **argv)
             refresh = atoi(argv[i] + 10);
         else if (!strncmp(argv[i], "--rates=", 8))
             setenv("BO1_REFRESH_RATES", argv[i] + 8, 1);   // the engine's list of refresh rates (d3d9_direct3d.cpp)
+        else if (!strncmp(argv[i], "--renderer=", 11))
+        {
+            const char *renderer = argv[i] + 11;
+            if (!strcmp(renderer, "dxvk"))
+            {
+                setenv("BO1_RENDERER", "vulkan", 1);
+                Say("Launcher renderer selection: DXVK Native 1.9.2");
+            }
+            else if (!strcmp(renderer, "native-vulkan"))
+            {
+                Say("Launcher renderer selection: Vulkan Native v0.1");
+                Say("Vulkan Native v0.1 is not connected to the BO1 D3D9 renderer yet; refusing to silently fall back to DXVK.");
+                SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Vulkan Nativo v0.1",
+                    "A base Vulkan/WSI existe, mas a renderizacao D3D9 do Black Ops ainda nao esta conectada. "
+                    "O motor nao sera iniciado neste modo para evitar usar DXVK sem avisar. Selecione DXVK Native 1.9.2 para jogar.", NULL);
+                return 0;
+            }
+            else
+                Say("Ignoring unknown launcher renderer: %s", renderer);
+        }
         else if (!strncmp(argv[i], "--dxvk=", 7))
             setenv("BO1_DXVK_RENDERER", argv[i] + 7, 1);
         else
