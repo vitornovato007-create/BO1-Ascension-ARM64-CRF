@@ -115,7 +115,6 @@ int CreateContext(int width, int height)
     }
 #endif
 #ifdef __ANDROID__
-    s_nativeVkTestLoaderLoaded = true;
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     SDL_ShowCursor(SDL_DISABLE);   // no system pointer over the game (a mouse or a touch pad still moves the game's own)
 #endif
