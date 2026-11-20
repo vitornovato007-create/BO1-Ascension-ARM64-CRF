@@ -95,6 +95,8 @@ bool CreateSwapchain(SDL_Window *window)
     r = vkGetPhysicalDeviceSurfaceFormatsKHR(g.physical, g.surface, &count, formats.data());
     if (r != VK_SUCCESS) { Log("surface format query failed", r); return false; }
     VkSurfaceFormatKHR chosen = formats[0];
+    if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
+        chosen.format = VK_FORMAT_B8G8R8A8_UNORM;
     for (const auto &f : formats)
         if (f.format == VK_FORMAT_R8G8B8A8_UNORM || f.format == VK_FORMAT_B8G8R8A8_UNORM) { chosen = f; break; }
     g.format = chosen.format;
@@ -110,6 +112,9 @@ bool CreateSwapchain(SDL_Window *window)
     }
     uint32_t imageCount = caps.minImageCount + 1;
     if (caps.maxImageCount && imageCount > caps.maxImageCount) imageCount = caps.maxImageCount;
+
+    if (!(caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT))
+    { Log("surface does not support color-attachment swapchain images"); return false; }
 
     VkSwapchainCreateInfoKHR ci{};
     ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -297,11 +302,13 @@ extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float 
     r = vkAcquireNextImageKHR(g.device, g.swapchain, UINT64_MAX, g.acquired, VK_NULL_HANDLE, &index);
     if (r == VK_ERROR_OUT_OF_DATE_KHR) { Log("swapchain out of date; recreate on next integration step"); return 0; }
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) { Log("image acquisition failed", r); return 0; }
-    vkResetFences(g.device, 1, &g.fence);
-    vkResetCommandBuffer(g.command, 0);
+    r = vkResetFences(g.device, 1, &g.fence);
+    if (r != VK_SUCCESS) { Log("fence reset failed", r); Destroy(); return 0; }
+    r = vkResetCommandBuffer(g.command, 0);
+    if (r != VK_SUCCESS) { Log("command buffer reset failed", r); Destroy(); return 0; }
     VkCommandBufferBeginInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     r = vkBeginCommandBuffer(g.command, &bi);
-    if (r != VK_SUCCESS) { Log("command buffer begin failed", r); return 0; }
+    if (r != VK_SUCCESS) { Log("command buffer begin failed", r); Destroy(); return 0; }
     VkClearValue clear{}; clear.color.float32[0] = red; clear.color.float32[1] = green;
     clear.color.float32[2] = blue; clear.color.float32[3] = 1.0f;
     VkRenderPassBeginInfo rp{}; rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -310,7 +317,7 @@ extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float 
     vkCmdBeginRenderPass(g.command, &rp, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdEndRenderPass(g.command);
     r = vkEndCommandBuffer(g.command);
-    if (r != VK_SUCCESS) { Log("command buffer end failed", r); return 0; }
+    if (r != VK_SUCCESS) { Log("command buffer end failed", r); Destroy(); return 0; }
     const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submit{}; submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit.waitSemaphoreCount = 1; submit.pWaitSemaphores = &g.acquired;
@@ -318,17 +325,17 @@ extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float 
     submit.commandBufferCount = 1; submit.pCommandBuffers = &g.command;
     submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &g.rendered;
     r = vkQueueSubmit(g.queue, 1, &submit, g.fence);
-    if (r != VK_SUCCESS) { Log("queue submit failed", r); return 0; }
+    if (r != VK_SUCCESS) { Log("queue submit failed", r); Destroy(); return 0; }
     VkPresentInfoKHR present{}; present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present.waitSemaphoreCount = 1; present.pWaitSemaphores = &g.rendered;
     present.swapchainCount = 1; present.pSwapchains = &g.swapchain; present.pImageIndices = &index;
     r = vkQueuePresentKHR(g.queue, &present);
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR && r != VK_ERROR_OUT_OF_DATE_KHR)
-    { Log("queue present failed", r); return 0; }
+    { Log("queue present failed", r); Destroy(); return 0; }
     // Conservative single-queue synchronization for this bring-up backend. Replace with per-frame fences/semaphores
     // and multiple frames in flight before performance tuning.
     r = vkQueueWaitIdle(g.queue);
-    if (r != VK_SUCCESS) { Log("queue idle failed", r); return 0; }
+    if (r != VK_SUCCESS) { Log("queue idle failed", r); Destroy(); return 0; }
     return 1;
 }
 
