@@ -3,6 +3,9 @@
 #include <string.h>
 #include "assertive.h"
 #include "q_shared.h"
+#ifdef BO1_WEB
+#include <unistd.h>
+#endif
 
 unsigned int __cdecl FS_FileRead(void *ptr, unsigned int len, FILE *stream)
 {
@@ -28,9 +31,19 @@ FILE *__cdecl FileWrapper_Open(const char *ospath, const char *mode)
 
     *_errno() = 0;
     file = fopen(ospath, mode);
-    if ( file != (FILE *)-1 )
+    if (file != NULL)
         return file;
     v3 = _errno();
+#ifdef BO1_WEB
+    {
+        char cwd[1024] = {0};
+        fprintf(stderr,
+                "[BO1-FILE] fopen failed path='%s' mode='%s' errno=%d (%s) cwd='%s'\\n",
+                ospath ? ospath : "<null>", mode ? mode : "<null>", *v3,
+                strerror(*v3), getcwd(cwd, sizeof(cwd)) ? cwd : "<getcwd failed>");
+        fflush(stderr);
+    }
+#endif
     v4 = strerror(*v3);
     v5 = va("Couldn't open file: %s %s", ospath, v4);
     if ( !Assert_MyHandler(
