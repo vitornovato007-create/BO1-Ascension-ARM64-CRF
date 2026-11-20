@@ -295,18 +295,45 @@ int SDL_main(int argc, char **argv)
         Say("no external files directory: %s", SDL_GetError());
         return 1;
     }
-    snprintf(game, sizeof(game), "%s/game", files);
+    game[0] = 0;
+    int hasSelectedGameDirectory = 0;
     for (int i = 1; i < argc; ++i)
     {
         if (!strncmp(argv[i], "--game-dir=", 11) && argv[i][11])
         {
-            if (snprintf(game, sizeof(game), "%s", argv[i] + 11) >= (int)sizeof(game))
+            const char *selectedPath = argv[i] + 11;
+            Say("launcher supplied game folder argument: %s", selectedPath);
+            if (snprintf(game, sizeof(game), "%s", selectedPath) >= (int)sizeof(game))
             {
                 Say("selected game folder path is too long");
                 return 1;
             }
+            hasSelectedGameDirectory = 1;
             break;
         }
+    }
+    if (!hasSelectedGameDirectory)
+    {
+        Say("ERROR: launcher did not pass --game-dir; refusing to guess a game folder");
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Black Ops",
+            "No game folder was received from the launcher. Return to the launcher and select the BO1PC folder again.", NULL);
+        return 1;
+    }
+    {
+        char canonicalGame[1024];
+        if (!realpath(game, canonicalGame))
+        {
+            Say("ERROR: selected game folder does not exist or cannot be resolved: %s (%s)", game, strerror(errno));
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Black Ops",
+                "The selected game folder could not be opened. Select the folder containing localization.txt and zone/ again.", NULL);
+            return 1;
+        }
+        if (snprintf(game, sizeof(game), "%s", canonicalGame) >= (int)sizeof(game))
+        {
+            Say("selected canonical game folder path is too long");
+            return 1;
+        }
+        Say("using selected game folder: %s", game);
     }
     snprintf(home, sizeof(home), "%s/home", files);
     snprintf(logPath, sizeof(logPath), "%s/bo1.log", files);
