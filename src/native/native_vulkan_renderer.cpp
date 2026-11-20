@@ -105,6 +105,11 @@ bool CreateSwapchain(SDL_Window *window)
     VkSurfaceCapabilitiesKHR caps{};
     VkResult r = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g.physical, g.surface, &caps);
     if (r != VK_SUCCESS) { Log("surface capabilities failed", r); return false; }
+    if ((caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) == 0)
+    {
+        Log("surface does not support color-attachment swapchain images");
+        return false;
+    }
 
     uint32_t count = 0;
     r = vkGetPhysicalDeviceSurfaceFormatsKHR(g.physical, g.surface, &count, nullptr);
@@ -115,9 +120,24 @@ bool CreateSwapchain(SDL_Window *window)
     VkSurfaceFormatKHR chosen = formats[0];
     if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
         chosen.format = VK_FORMAT_B8G8R8A8_UNORM;
-    for (const auto &f : formats)
-        if (f.format == VK_FORMAT_R8G8B8A8_UNORM || f.format == VK_FORMAT_B8G8R8A8_UNORM) { chosen = f; break; }
+    else
+    {
+        // Prefer a common 8-bit format in the nonlinear sRGB color space when advertised.
+        bool foundPreferred = false;
+        for (const auto &f : formats)
+        {
+            if (f.format != VK_FORMAT_R8G8B8A8_UNORM && f.format != VK_FORMAT_B8G8R8A8_UNORM)
+                continue;
+            if (!foundPreferred || f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                chosen = f;
+            foundPreferred = true;
+            if (f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                break;
+        }
+    }
     g.format = chosen.format;
+    fprintf(stderr, "native-vk-renderer: surface format=%d colorspace=%d advertised=%zu\\n",
+        (int)chosen.format, (int)chosen.colorSpace, formats.size());
 
     int dw = 0, dh = 0;
     SDL_Vulkan_GetDrawableSize(window, &dw, &dh);
@@ -256,9 +276,20 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     ii.pApplicationInfo = &app;
     ii.enabledExtensionCount = extCount;
     ii.ppEnabledExtensionNames = extensions.data();
+    if (extCount == 0)
+    {
+        Log("SDL reported no required Vulkan instance extensions");
+        Destroy();
+        return 0;
+    }
     VkResult r = vkCreateInstance(&ii, nullptr, &g.instance);
     if (r != VK_SUCCESS) { Log("vkCreateInstance failed", r); Destroy(); return 0; }
-    if (!SDL_Vulkan_CreateSurface(window, g.instance, &g.surface)) { Log(SDL_GetError()); Destroy(); return 0; }
+    if (!SDL_Vulkan_CreateSurface(window, g.instance, &g.surface))
+    {
+        Log(SDL_GetError());
+        Destroy();
+        return 0;
+    }
 
     uint32_t physicalCount = 0;
     r = vkEnumeratePhysicalDevices(g.instance, &physicalCount, nullptr);
@@ -316,9 +347,25 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     if (vkCreateFence(g.device, &fence, nullptr, &g.fence) != VK_SUCCESS)
     { Log("fence creation failed"); Destroy(); return 0; }
     g.initialized = true;
-    VkPhysicalDeviceProperties props{}; vkGetPhysicalDeviceProperties(g.physical, &props);
-    fprintf(stderr, "native-vk-renderer: initialized GPU=%s extent=%ux%u images=%zu frames=1\n",
-        props.deviceName, g.extent.width, g.extent.height, g.images.size());
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(g.physical, &props);
+    VkPhysicalDeviceMemoryProperties memory{};
+    vkGetPhysicalDeviceMemoryProperties(g.physical, &memory);
+    uint64_t heapBytes = 0;
+    for (uint32_t i = 0; i < memory.memoryHeapCount; ++i)
+        if (memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+            heapBytes += memory.memoryHeaps[i].size;
+    VkFormatProperties bc1{}, bc3{};
+    vkGetPhysicalDeviceFormatProperties(g.physical, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, &bc1);
+    vkGetPhysicalDeviceFormatProperties(g.physical, VK_FORMAT_BC3_UNORM_BLOCK, &bc3);
+    fprintf(stderr,
+        "native-vk-renderer: initialized GPU=%s vendor=0x%04x device=0x%04x api=%u.%u.%u "
+        "extent=%ux%u images=%zu deviceLocalHeapMiB=%llu BC1optimal=0x%x BC3optimal=0x%x frames=1\\n",
+        props.deviceName, props.vendorID, props.deviceID,
+        VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
+        g.extent.width, g.extent.height, g.images.size(),
+        (unsigned long long)(heapBytes / (1024 * 1024)),
+        bc1.optimalTilingFeatures, bc3.optimalTilingFeatures);
     return 1;
 }
 
