@@ -47,6 +47,7 @@ SDL_GLContext s_context;
 pthread_t s_videoThread;
 bool s_videoInit;
 bool s_grabbed;
+bool s_windowIsVulkan;
 
 bool InitVideo()
 {
@@ -127,9 +128,11 @@ int CreateContext(int width, int height)
 #ifdef __ANDROID__
     s_window = SDL_CreateWindow("Call of Duty: Black Ops", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h,
         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+    s_windowIsVulkan = false;
 #else
     s_window = SDL_CreateWindow("Call of Duty: Black Ops", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    s_windowIsVulkan = false;
 #endif
     if (!s_window)
     {
@@ -528,6 +531,11 @@ extern "C" void *bo1_native_video_vulkan_window(int width, int height)
     }
     if (s_window)
     {
+        if (!s_windowIsVulkan)
+        {
+            fprintf(stderr, "native-vk-window: REFUSE existing SDL window: it was created for OpenGL ES, not Vulkan\\n");
+            return nullptr;
+        }
         if (!s_displayWindow)
             SDL_SetWindowSize(s_window, w, h);
         return s_window;
@@ -537,6 +545,7 @@ extern "C" void *bo1_native_video_vulkan_window(int width, int height)
     SDL_ShowCursor(SDL_DISABLE);   // no system pointer over the game (a mouse or a touch pad still moves the game's own)
     s_window = SDL_CreateWindow("Call of Duty: Black Ops", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h,
         SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+    s_windowIsVulkan = s_window != nullptr;
 #else
     if (const char *fixed = SDL_getenv("BO1_WINDOW_SIZE"))
     {
@@ -550,6 +559,7 @@ extern "C" void *bo1_native_video_vulkan_window(int width, int height)
     }
     s_window = SDL_CreateWindow("Call of Duty: Black Ops", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, w, h,
         SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN);
+    s_windowIsVulkan = s_window != nullptr;
 #endif
     if (!s_window)
     {
@@ -566,8 +576,12 @@ extern "C" void bo1_native_video_vulkan_close(void)
 {
     if (s_window)
     {
-        SDL_DestroyWindow(s_window);
+        if (s_windowIsVulkan)
+            SDL_DestroyWindow(s_window);
+        else
+            fprintf(stderr, "native-vk-window: close ignored: active SDL window is not Vulkan\\n");
         s_window = nullptr;
+        s_windowIsVulkan = false;
     }
     SDL_Vulkan_UnloadLibrary();
 }
