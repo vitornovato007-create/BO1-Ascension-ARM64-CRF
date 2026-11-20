@@ -2,6 +2,10 @@
 
 The native Vulkan foundation has advanced from a one-time WSI clear test to a persistent Android swapchain owner with resize/out-of-date recovery.
 
+## Launcher preflight integration
+
+The launcher now exposes the native Vulkan preflight through its Iniciar Jogo button. When Vulkan Nativo is selected, the 64-bit Android boot stub loads libbo1.so, resolves the three no-pointer-argument test lifecycle entry points, and runs start -> one clear/present frame -> stop before calling bo1_android_main. A missing symbol, initialization failure, or present failure is logged and stops this test launch. A successful preflight also stops before engine entry and shows a message: the device/swapchain/present path works, but BO1's D3D9 scene renderer is not connected yet. DXVK launch behavior is unchanged. This is a preflight-only launch path, not game rendering.
+
 ## Implemented
 
 - Android-only Vulkan implementation; non-Android builds retain inert stubs until a desktop Vulkan loader path is configured.
