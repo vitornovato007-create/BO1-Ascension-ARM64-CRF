@@ -48,3 +48,8 @@ The renderer requires an SDL window created with `SDL_WINDOW_VULKAN`. The caller
 6. Enable BO1 startup through this backend only after the first real D3D9 scene renders; keep DXVK selectable as the working alternative.
 
 No GitHub Actions workflow or build was started. Compilation and device testing remain pending.
+
+
+## Low-address-space reservation timing
+
+The Android loader now calls `PrepareLowMemory()` in `SDL_main` immediately after redirecting stdout/stderr to `bo1.log`, before the later `SDL_InitSubSystem(SDL_INIT_VIDEO)` call. The same function is idempotently called by `BootRun` (and by the standalone boot test path). It selects and reserves the engine image and contiguous low heap, then exports `BO1_LOWMEM_BASE`, `BO1_LOWMEM_MB`, and `BO1_LOWMEM_RESERVED` before SDL video initialization can load EGL/GLES drivers and fragment the limited address space below 4 GB. This preserves the existing 256 MB image reservation and 1 GB minimum contiguous heap; it does not reduce engine memory requirements or permit fragmented heaps. Device validation is still required; if the pre-video process layout has no suitable range, startup will continue to fail with a logged reservation error.
