@@ -7,6 +7,7 @@
 #include <cstring>
 #ifdef BO1_WEB
 #include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 struct// $8CB265A9D3778DFC1F2AA7A5F0192391 // sizeof=0x8
@@ -26,17 +27,38 @@ int Win_InitLocalization()
     int lang; // [esp+Ch] [ebp-4h] BYREF
 
 #ifdef BO1_WEB
-    {
-        char cwd[1024] = {0};
-        fprintf(stderr, "[BO1-LOCALIZATION] Win_InitLocalization enter cwd=%s\\n",
-                getcwd(cwd, sizeof(cwd)) ? cwd : "<getcwd failed>");
-    }
+    char localization_path[2048] = {0};
+    char cwd[1024] = {0};
+    const char *cwd_result = getcwd(cwd, sizeof(cwd));
+    fprintf(stderr, "[BO1-LOCALIZATION] Win_InitLocalization enter cwd=%s\\n",
+            cwd_result ? cwd : "<getcwd failed>");
 #endif
     localization.language = 0;
     localization.strings = 0;
-    fp = FS_FileOpenReadText("localization.txt");
 #ifdef BO1_WEB
-    fprintf(stderr, "[BO1-LOCALIZATION] open localization.txt fp=%p\\n", (void *)fp);
+    if (cwd_result && snprintf(localization_path, sizeof(localization_path),
+                               "%s/localization.txt", cwd) < (int)sizeof(localization_path))
+    {
+        struct stat file_info;
+        const int relative_access = access("localization.txt", R_OK);
+        const int absolute_access = access(localization_path, R_OK);
+        const int absolute_stat = stat(localization_path, &file_info);
+        fprintf(stderr,
+                "[BO1-LOCALIZATION] path probe relative_access=%d absolute_access=%d absolute_stat=%d absolute_path='%s'\\n",
+                relative_access, absolute_access, absolute_stat, localization_path);
+        fp = FS_FileOpenReadText(localization_path);
+        fprintf(stderr, "[BO1-LOCALIZATION] absolute open fp=%p\\n", (void *)fp);
+    }
+    else
+        fp = NULL;
+    if (!fp)
+    {
+        fprintf(stderr, "[BO1-LOCALIZATION] trying relative localization.txt\\n");
+        fp = FS_FileOpenReadText("localization.txt");
+        fprintf(stderr, "[BO1-LOCALIZATION] relative open fp=%p\\n", (void *)fp);
+    }
+#else
+    fp = FS_FileOpenReadText("localization.txt");
 #endif
 
     if (!fp)
