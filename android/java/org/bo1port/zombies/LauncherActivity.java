@@ -47,7 +47,6 @@ public class LauncherActivity extends Activity {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(width < 0 ? width : dp(width), height < 0 ? height : dp(height));
         p.topMargin = dp(top);
         parent.addView(child, p);
-        return parent;
     }
 
     private TextView rendererCard(String title, String subtitle, boolean experimental, boolean chosen) {
