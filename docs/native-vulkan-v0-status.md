@@ -1,31 +1,33 @@
-# Native Vulkan renderer — V0 implementation status
+# Native Vulkan renderer — V0.2 implementation status
 
-This branch now contains the first persistent Vulkan WSI backend foundation:
+The native Vulkan foundation has advanced from a one-time WSI clear test to a persistent Android swapchain owner with resize/out-of-date recovery.
 
-- `src/native/native_vulkan_renderer.h`
-- `src/native/native_vulkan_renderer.cpp`
+## Implemented
 
-## What is implemented
-
-- Android-only Vulkan implementation; desktop/Linux builds receive inert stubs until their Vulkan loader configuration is explicit.
-- Creates and retains a Vulkan instance, SDL surface, selected physical device, graphics/present queue, logical device and swapchain.
+- Android-only Vulkan implementation; non-Android builds retain inert stubs until a desktop Vulkan loader path is configured.
+- Creates and retains the Vulkan instance, SDL surface, selected physical device, graphics/present queue, logical device and swapchain.
 - Creates swapchain image views, a clear render pass, framebuffers, command pool/buffer, semaphores and a fence.
-- Exposes init, one-frame clear/present, and shutdown entry points.
-- Uses conservative single-frame synchronization and waits for the queue to become idle. This is intentionally a bring-up path, not a performance configuration.
-- Leaves the existing DXVK bridge and GLES D3D9 shim untouched.
+- Exposes initialization, clear/present and shutdown entry points.
+- Retains the SDL window pointer for the lifetime of the renderer; the caller must keep the window alive until shutdown.
+- Detects drawable-size changes before presenting and rebuilds swapchain-dependent resources.
+- Handles `VK_ERROR_OUT_OF_DATE_KHR` from image acquisition by scheduling recreation, and handles `VK_SUBOPTIMAL_KHR` / out-of-date presentation by rebuilding on the next frame.
+- Handles temporary zero-sized drawable surfaces without submitting work.
+- Keeps conservative single-frame synchronization and waits for the queue to become idle. This is deliberate until per-image present semaphores and multiple frames in flight are implemented.
+- Existing DXVK and GLES D3D9 paths remain unchanged.
 
-## Current limits — do not mistake this for BO1 native rendering
+## Explicit limitations
 
-This is a persistent WSI/clear-pass backend, not yet the game's D3D9 renderer. It does not draw a triangle, compile game shaders, translate D3D9 state, upload BO1 textures, or route game draw calls through Vulkan. It is also not yet wired into the game's video selection/runtime loop; the API is available for the next integration step.
+This is **not yet BO1 native rendering**. It still clears the swapchain to a solid color. It does not create graphics pipelines or SPIR-V shader modules, draw geometry, translate D3D9 state, upload game textures, or route BO1 draw calls through Vulkan. It is not connected to the game's D3D9 device lifecycle. The launcher continues to block native-Vulkan game startup rather than silently using DXVK or GLES.
 
-Swapchain recreation on resize/out-of-date is not implemented yet. The caller must provide an SDL window created with `SDL_WINDOW_VULKAN`, keep it alive while this backend is active, and call shutdown before destroying that window.
+The renderer requires an SDL window created with `SDL_WINDOW_VULKAN`. The caller owns the window and must call renderer shutdown before destroying it.
 
-## Next implementation steps
+## Next engineering milestones
 
-1. Add explicit opt-in runtime selection and connect init/present/shutdown to the native video lifecycle without changing the DXVK default.
-2. Add swapchain recreation and robust Android pause/resume handling.
-3. Add a minimal SPIR-V graphics pipeline and triangle test.
-4. Begin D3D9 resource/state translation, descriptor management, shader translation and texture-format fallback (including software DXT decode on Mali-G76).
-5. Keep the DXVK path available until a complete BO1 map renders through the native Vulkan backend.
+1. Add an isolated Vulkan bring-up test path that invokes init/present/shutdown from the native video lifecycle, without claiming to render BO1.
+2. Add a minimal SPIR-V graphics pipeline and triangle test to verify vertex/fragment shader execution on Mali.
+3. Add Vulkan buffer/image allocation, staging uploads, descriptors and device-memory tracking.
+4. Implement BC1/BC2/BC3 software decode fallback because the Galaxy S10 Mali-G76 probe reported BC1 and BC3 unsupported.
+5. Implement the D3D9-to-Vulkan frontend: shader bytecode translation to SPIR-V, D3D9 state/resource mapping, render targets and draw calls.
+6. Enable BO1 startup through this backend only after the first real D3D9 scene renders; keep DXVK selectable as the working alternative.
 
-No workflow or build was started as part of this change. Compilation and device testing remain pending.
+No GitHub Actions workflow or build was started. Compilation and device testing remain pending.
