@@ -97,13 +97,17 @@ public class LauncherActivity extends Activity {
         if (hasGameFiles()) {
             folderStatus.setText("Arquivos do jogo prontos. Pasta interna: " + gameDirectory().getAbsolutePath());
             folderStatus.setTextColor(Color.rgb(154, 220, 184));
-            startButton.setEnabled(true);
-            startButton.setAlpha(1.0f);
+            if (startButton != null) {
+                startButton.setEnabled(true);
+                startButton.setAlpha(1.0f);
+            }
         } else {
             folderStatus.setText("Nenhuma instalação válida selecionada. Escolha a pasta que contém localization.txt e zone/.");
             folderStatus.setTextColor(Color.rgb(255, 202, 112));
-            startButton.setEnabled(false);
-            startButton.setAlpha(0.55f);
+            if (startButton != null) {
+                startButton.setEnabled(false);
+                startButton.setAlpha(0.55f);
+            }
         }
     }
 
