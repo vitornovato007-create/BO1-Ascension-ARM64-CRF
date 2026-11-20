@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -101,7 +100,7 @@ public class LauncherActivity extends Activity {
             folderStatus.setText("Permita o acesso a todos os arquivos para o motor ler diretamente a pasta original do jogo.");
             folderStatus.setTextColor(Color.rgb(255, 202, 112));
         } else if (hasGameFiles()) {
-            folderStatus.setText("Pasta do jogo: " + selectedGamePath() + "\\nLeitura direta ativada — nenhum arquivo será copiado.");
+            folderStatus.setText("Pasta do jogo: " + selectedGamePath() + "\nLeitura direta ativada — nenhum arquivo será copiado.");
             folderStatus.setTextColor(Color.rgb(154, 220, 184));
         } else {
             folderStatus.setText("Nenhuma pasta válida selecionada. Escolha a pasta que contém localization.txt e zone/.");
@@ -192,7 +191,7 @@ public class LauncherActivity extends Activity {
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.toString();
             new AlertDialog.Builder(this).setTitle("Não foi possível usar essa pasta")
-                .setMessage(message + "\\n\\nEscolha uma pasta no armazenamento interno compartilhado ou em um volume externo acessível.")
+                .setMessage(message + "\n\nEscolha uma pasta no armazenamento interno compartilhado ou em um volume externo acessível.")
                 .setPositiveButton("OK", null).show();
         }
     }
