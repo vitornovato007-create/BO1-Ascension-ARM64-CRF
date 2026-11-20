@@ -61,7 +61,9 @@ public class Bo1Activity extends SDLActivity {
         } catch (Throwable ignored) {
             // 60
         }
-        return new String[] { "--refresh=" + refresh, "--rates=" + supportedRates() };
+        String renderer = getIntent().getStringExtra("bo1.renderer");
+        if (renderer == null) renderer = "dxvk";
+        return new String[] { "--refresh=" + refresh, "--rates=" + supportedRates(), "--renderer=" + renderer };
     }
 
     /** The display's refresh rates at the current resolution, ascending: "60,90,120". */
