@@ -136,7 +136,7 @@ bool CreateSwapchain(SDL_Window *window)
         }
     }
     g.format = chosen.format;
-    fprintf(stderr, "native-vk-renderer: surface format=%d colorspace=%d advertised=%zu\\n",
+    fprintf(stderr, "native-vk-renderer: surface format=%d colorspace=%d advertised=%zu\n",
         (int)chosen.format, (int)chosen.colorSpace, formats.size());
 
     int dw = 0, dh = 0;
@@ -360,7 +360,7 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     vkGetPhysicalDeviceFormatProperties(g.physical, VK_FORMAT_BC3_UNORM_BLOCK, &bc3);
     fprintf(stderr,
         "native-vk-renderer: initialized GPU=%s vendor=0x%04x device=0x%04x api=%u.%u.%u "
-        "extent=%ux%u images=%zu deviceLocalHeapMiB=%llu BC1optimal=0x%x BC3optimal=0x%x frames=1\\n",
+        "extent=%ux%u images=%zu deviceLocalHeapMiB=%llu BC1optimal=0x%x BC3optimal=0x%x frames=1\n",
         props.deviceName, props.vendorID, props.deviceID,
         VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
         g.extent.width, g.extent.height, g.images.size(),
