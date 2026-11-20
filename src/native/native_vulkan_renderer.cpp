@@ -12,6 +12,7 @@
 #include <cstring>
 #include <vector>
 
+#ifdef __ANDROID__
 namespace
 {
 struct Renderer
@@ -335,3 +336,13 @@ extern "C" void bo1_native_vulkan_renderer_shutdown(void)
 {
     Destroy();
 }
+
+#else
+
+// The first native backend milestone is Android-only. Keep Linux/desktop native builds linkable
+// until their Vulkan loader and SDL video backend are configured explicitly.
+extern "C" int bo1_native_vulkan_renderer_init(void *) { return 0; }
+extern "C" int bo1_native_vulkan_renderer_present(float, float, float) { return 0; }
+extern "C" void bo1_native_vulkan_renderer_shutdown(void) {}
+
+#endif // __ANDROID__
