@@ -249,13 +249,24 @@ int SDL_main(int argc, char **argv)
         return 1;
     }
     snprintf(game, sizeof(game), "%s/game", files);
+    for (int i = 1; i < argc; ++i)
+    {
+        if (!strncmp(argv[i], "--game-dir=", 11) && argv[i][11])
+        {
+            if (snprintf(game, sizeof(game), "%s", argv[i] + 11) >= (int)sizeof(game))
+            {
+                Say("selected game folder path is too long");
+                return 1;
+            }
+            break;
+        }
+    }
     snprintf(home, sizeof(home), "%s/home", files);
     snprintf(logPath, sizeof(logPath), "%s/bo1.log", files);
     static char dxvkStatusPath[1100];
     snprintf(dxvkStatusPath, sizeof(dxvkStatusPath), "%s/dxvk_status.txt", home);
     setenv("BO1_DXVK_STATUS_FILE", dxvkStatusPath, 1);
     snprintf(argsPath, sizeof(argsPath), "%s/args.txt", files);
-    mkdir(game, 0775);
     mkdir(home, 0775);
     { FILE *status = fopen(dxvkStatusPath, "w"); if (status) { fputs("Not tested (Vulkan renderer has not initialized)\n", status); fclose(status); } }
 
@@ -290,10 +301,9 @@ int SDL_main(int argc, char **argv)
     snprintf(marker, sizeof(marker), "%s/localization.txt", game);
     if (access(marker, R_OK) != 0)
     {
-        Say("game files not found: copy the Black Ops install into %s (it must contain localization.txt and zone/)", game);
+        Say("game files not found or inaccessible at selected path: %s (expected localization.txt and zone/)", game);
         static char message[1400];
-        snprintf(message, sizeof(message), "Game files not found.\n\nCopy the contents of your \"Call of Duty Black Ops\" "
-            "folder (localization.txt, zone, main, ...) into\n\n%s\n\non the device, then start again.", game);
+        snprintf(message, sizeof(message), "Game files not found or inaccessible.\\n\\nThe selected folder must contain localization.txt and zone/:\\n\\n%s\\n\\nGrant file access and select the original game folder again.", game);
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Black Ops", message, NULL);
         return 1;
     }
@@ -341,6 +351,8 @@ int SDL_main(int argc, char **argv)
             else
                 Say("Ignoring unknown launcher renderer: %s", renderer);
         }
+        else if (!strncmp(argv[i], "--game-dir=", 11))
+            ; // consumed above; do not pass the launcher argument to the game engine
         else if (!strncmp(argv[i], "--dxvk=", 7))
             setenv("BO1_DXVK_RENDERER", argv[i] + 7, 1);
         else
