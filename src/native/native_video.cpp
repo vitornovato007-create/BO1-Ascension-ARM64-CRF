@@ -576,10 +576,13 @@ extern "C" void bo1_native_video_vulkan_close(void)
 {
     if (s_window)
     {
-        if (s_windowIsVulkan)
-            SDL_DestroyWindow(s_window);
-        else
+        if (!s_windowIsVulkan)
+        {
             fprintf(stderr, "native-vk-window: close ignored: active SDL window is not Vulkan\\n");
+            SDL_Vulkan_UnloadLibrary();
+            return;
+        }
+        SDL_DestroyWindow(s_window);
         s_window = nullptr;
         s_windowIsVulkan = false;
     }
