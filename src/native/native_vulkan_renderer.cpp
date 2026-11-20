@@ -30,8 +30,10 @@ struct Renderer
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandBuffer command = VK_NULL_HANDLE;
     VkSemaphore acquired = VK_NULL_HANDLE;
-    VkSemaphore rendered = VK_NULL_HANDLE;
+    std::vector<VkSemaphore> rendered;
     VkFence fence = VK_NULL_HANDLE;
+    SDL_Window *window = nullptr;
+    bool recreateSwapchain = false;
     std::vector<VkImage> images;
     std::vector<VkImageView> views;
     std::vector<VkFramebuffer> framebuffers;
@@ -62,20 +64,35 @@ bool HasSwapchain(VkPhysicalDevice physical)
     return false;
 }
 
+void DestroySwapchainResources()
+{
+    if (!g.device) return;
+    for (VkSemaphore semaphore : g.rendered)
+        if (semaphore) vkDestroySemaphore(g.device, semaphore, nullptr);
+    g.rendered.clear();
+    for (VkFramebuffer f : g.framebuffers)
+        if (f) vkDestroyFramebuffer(g.device, f, nullptr);
+    g.framebuffers.clear();
+    if (g.renderPass) vkDestroyRenderPass(g.device, g.renderPass, nullptr);
+    g.renderPass = VK_NULL_HANDLE;
+    for (VkImageView v : g.views)
+        if (v) vkDestroyImageView(g.device, v, nullptr);
+    g.views.clear();
+    g.images.clear();
+    if (g.swapchain) vkDestroySwapchainKHR(g.device, g.swapchain, nullptr);
+    g.swapchain = VK_NULL_HANDLE;
+    g.format = VK_FORMAT_UNDEFINED;
+    g.extent = {};
+}
+
 void Destroy()
 {
     if (g.device)
         vkDeviceWaitIdle(g.device);
-    for (VkFramebuffer f : g.framebuffers)
-        if (f) vkDestroyFramebuffer(g.device, f, nullptr);
-    if (g.renderPass) vkDestroyRenderPass(g.device, g.renderPass, nullptr);
-    for (VkImageView v : g.views)
-        if (v) vkDestroyImageView(g.device, v, nullptr);
+    DestroySwapchainResources();
     if (g.acquired) vkDestroySemaphore(g.device, g.acquired, nullptr);
-    if (g.rendered) vkDestroySemaphore(g.device, g.rendered, nullptr);
     if (g.fence) vkDestroyFence(g.device, g.fence, nullptr);
     if (g.commandPool) vkDestroyCommandPool(g.device, g.commandPool, nullptr);
-    if (g.swapchain) vkDestroySwapchainKHR(g.device, g.swapchain, nullptr);
     if (g.device) vkDestroyDevice(g.device, nullptr);
     if (g.surface && g.instance) vkDestroySurfaceKHR(g.instance, g.surface, nullptr);
     if (g.instance) vkDestroyInstance(g.instance, nullptr);
@@ -84,6 +101,7 @@ void Destroy()
 
 bool CreateSwapchain(SDL_Window *window)
 {
+    DestroySwapchainResources();
     VkSurfaceCapabilitiesKHR caps{};
     VkResult r = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g.physical, g.surface, &caps);
     if (r != VK_SUCCESS) { Log("surface capabilities failed", r); return false; }
@@ -189,6 +207,17 @@ bool CreateSwapchain(SDL_Window *window)
     r = vkCreateRenderPass(g.device, &rp, nullptr, &g.renderPass);
     if (r != VK_SUCCESS) { Log("vkCreateRenderPass failed", r); return false; }
 
+    // A present-wait semaphore is owned by each swapchain image. Reacquiring that image
+    // guarantees the previous presentation operation has finished waiting on its semaphore.
+    g.rendered.resize(count, VK_NULL_HANDLE);
+    VkSemaphoreCreateInfo presentSemaphoreInfo{};
+    presentSemaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        r = vkCreateSemaphore(g.device, &presentSemaphoreInfo, nullptr, &g.rendered[i]);
+        if (r != VK_SUCCESS) { Log("per-image present semaphore creation failed", r); return false; }
+    }
+
     g.framebuffers.resize(count);
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -209,6 +238,7 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     if (g.initialized) return 1;
     SDL_Window *window = static_cast<SDL_Window *>(sdlWindow);
     if (!window) { Log("init rejected: SDL window is null"); return 0; }
+    g.window = window;
     uint32_t extCount = 0;
     if (!SDL_Vulkan_GetInstanceExtensions(window, &extCount, nullptr)) { Log(SDL_GetError()); return 0; }
     std::vector<const char *> extensions(extCount);
@@ -280,28 +310,51 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     r = vkAllocateCommandBuffers(g.device, &ai, &g.command);
     if (r != VK_SUCCESS) { Log("vkAllocateCommandBuffers failed", r); Destroy(); return 0; }
     VkSemaphoreCreateInfo si{}; si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    if (vkCreateSemaphore(g.device, &si, nullptr, &g.acquired) != VK_SUCCESS ||
-        vkCreateSemaphore(g.device, &si, nullptr, &g.rendered) != VK_SUCCESS)
-    { Log("semaphore creation failed"); Destroy(); return 0; }
+    if (vkCreateSemaphore(g.device, &si, nullptr, &g.acquired) != VK_SUCCESS)
+    { Log("image-acquired semaphore creation failed"); Destroy(); return 0; }
     VkFenceCreateInfo fence{}; fence.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO; fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     if (vkCreateFence(g.device, &fence, nullptr, &g.fence) != VK_SUCCESS)
     { Log("fence creation failed"); Destroy(); return 0; }
     g.initialized = true;
     VkPhysicalDeviceProperties props{}; vkGetPhysicalDeviceProperties(g.physical, &props);
-    fprintf(stderr, "native-vk-renderer: initialized GPU=%s extent=%ux%u images=%zu\n",
+    fprintf(stderr, "native-vk-renderer: initialized GPU=%s extent=%ux%u images=%zu frames=1\n",
         props.deviceName, g.extent.width, g.extent.height, g.images.size());
     return 1;
 }
 
 extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float blue)
 {
-    if (!g.initialized) return 0;
+    if (!g.initialized || !g.window) return 0;
+
+    int drawableWidth = 0, drawableHeight = 0;
+    SDL_Vulkan_GetDrawableSize(g.window, &drawableWidth, &drawableHeight);
+    // Android can temporarily report a zero-sized surface while the app is paused or its window is recreated.
+    if (drawableWidth <= 0 || drawableHeight <= 0)
+        return 1;
+
+    const bool extentChanged = (uint32_t)drawableWidth != g.extent.width ||
+        (uint32_t)drawableHeight != g.extent.height;
+    if (g.recreateSwapchain || extentChanged)
+    {
+        VkResult idle = vkDeviceWaitIdle(g.device);
+        if (idle != VK_SUCCESS) { Log("device idle before swapchain recreation failed", idle); return 0; }
+        if (!CreateSwapchain(g.window)) { Log("swapchain recreation failed"); return 0; }
+        g.recreateSwapchain = false;
+        fprintf(stderr, "native-vk-renderer: swapchain recreated extent=%ux%u images=%zu\n",
+            g.extent.width, g.extent.height, g.images.size());
+    }
+
     VkResult r = vkWaitForFences(g.device, 1, &g.fence, VK_TRUE, UINT64_MAX);
     if (r != VK_SUCCESS) { Log("frame fence wait failed", r); return 0; }
     uint32_t index = 0;
     r = vkAcquireNextImageKHR(g.device, g.swapchain, UINT64_MAX, g.acquired, VK_NULL_HANDLE, &index);
-    if (r == VK_ERROR_OUT_OF_DATE_KHR) { Log("swapchain out of date; recreate on next integration step"); return 0; }
+    if (r == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        g.recreateSwapchain = true;
+        return 1; // the next frame rebuilds the swapchain after waiting for the device
+    }
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) { Log("image acquisition failed", r); return 0; }
+    const bool acquiredSuboptimal = r == VK_SUBOPTIMAL_KHR;
     r = vkResetFences(g.device, 1, &g.fence);
     if (r != VK_SUCCESS) { Log("fence reset failed", r); Destroy(); return 0; }
     r = vkResetCommandBuffer(g.command, 0);
@@ -323,19 +376,19 @@ extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float 
     submit.waitSemaphoreCount = 1; submit.pWaitSemaphores = &g.acquired;
     submit.pWaitDstStageMask = &waitStage;
     submit.commandBufferCount = 1; submit.pCommandBuffers = &g.command;
-    submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &g.rendered;
+    submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &g.rendered[index];
     r = vkQueueSubmit(g.queue, 1, &submit, g.fence);
     if (r != VK_SUCCESS) { Log("queue submit failed", r); Destroy(); return 0; }
     VkPresentInfoKHR present{}; present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    present.waitSemaphoreCount = 1; present.pWaitSemaphores = &g.rendered;
+    present.waitSemaphoreCount = 1; present.pWaitSemaphores = &g.rendered[index];
     present.swapchainCount = 1; present.pSwapchains = &g.swapchain; present.pImageIndices = &index;
     r = vkQueuePresentKHR(g.queue, &present);
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR && r != VK_ERROR_OUT_OF_DATE_KHR)
     { Log("queue present failed", r); Destroy(); return 0; }
-    // Conservative single-queue synchronization for this bring-up backend. Replace with per-frame fences/semaphores
-    // and multiple frames in flight before performance tuning.
-    r = vkQueueWaitIdle(g.queue);
-    if (r != VK_SUCCESS) { Log("queue idle failed", r); Destroy(); return 0; }
+    // No queue-wide idle here: the frame fence protects command-buffer reuse, while
+    // per-image present semaphores are reused only after that swapchain image is reacquired.
+    if (acquiredSuboptimal || r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR)
+        g.recreateSwapchain = true;
     return 1;
 }
 
