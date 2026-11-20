@@ -67,6 +67,9 @@ bool HasSwapchain(VkPhysicalDevice physical)
 void DestroySwapchainResources()
 {
     if (!g.device) return;
+    for (VkSemaphore semaphore : g.rendered)
+        if (semaphore) vkDestroySemaphore(g.device, semaphore, nullptr);
+    g.rendered.clear();
     for (VkFramebuffer f : g.framebuffers)
         if (f) vkDestroyFramebuffer(g.device, f, nullptr);
     g.framebuffers.clear();
@@ -88,9 +91,6 @@ void Destroy()
         vkDeviceWaitIdle(g.device);
     DestroySwapchainResources();
     if (g.acquired) vkDestroySemaphore(g.device, g.acquired, nullptr);
-    for (VkSemaphore semaphore : g.rendered)
-        if (semaphore) vkDestroySemaphore(g.device, semaphore, nullptr);
-    g.rendered.clear();
     if (g.fence) vkDestroyFence(g.device, g.fence, nullptr);
     if (g.commandPool) vkDestroyCommandPool(g.device, g.commandPool, nullptr);
     if (g.device) vkDestroyDevice(g.device, nullptr);
