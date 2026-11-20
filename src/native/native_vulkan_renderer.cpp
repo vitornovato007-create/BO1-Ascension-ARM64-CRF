@@ -30,7 +30,7 @@ struct Renderer
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandBuffer command = VK_NULL_HANDLE;
     VkSemaphore acquired = VK_NULL_HANDLE;
-    VkSemaphore rendered = VK_NULL_HANDLE;
+    std::vector<VkSemaphore> rendered;
     VkFence fence = VK_NULL_HANDLE;
     SDL_Window *window = nullptr;
     bool recreateSwapchain = false;
@@ -88,7 +88,9 @@ void Destroy()
         vkDeviceWaitIdle(g.device);
     DestroySwapchainResources();
     if (g.acquired) vkDestroySemaphore(g.device, g.acquired, nullptr);
-    if (g.rendered) vkDestroySemaphore(g.device, g.rendered, nullptr);
+    for (VkSemaphore semaphore : g.rendered)
+        if (semaphore) vkDestroySemaphore(g.device, semaphore, nullptr);
+    g.rendered.clear();
     if (g.fence) vkDestroyFence(g.device, g.fence, nullptr);
     if (g.commandPool) vkDestroyCommandPool(g.device, g.commandPool, nullptr);
     if (g.device) vkDestroyDevice(g.device, nullptr);
@@ -205,6 +207,17 @@ bool CreateSwapchain(SDL_Window *window)
     r = vkCreateRenderPass(g.device, &rp, nullptr, &g.renderPass);
     if (r != VK_SUCCESS) { Log("vkCreateRenderPass failed", r); return false; }
 
+    // A present-wait semaphore is owned by each swapchain image. Reacquiring that image
+    // guarantees the previous presentation operation has finished waiting on its semaphore.
+    g.rendered.resize(count, VK_NULL_HANDLE);
+    VkSemaphoreCreateInfo presentSemaphoreInfo{};
+    presentSemaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        r = vkCreateSemaphore(g.device, &presentSemaphoreInfo, nullptr, &g.rendered[i]);
+        if (r != VK_SUCCESS) { Log("per-image present semaphore creation failed", r); return false; }
+    }
+
     g.framebuffers.resize(count);
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -297,9 +310,8 @@ extern "C" int bo1_native_vulkan_renderer_init(void *sdlWindow)
     r = vkAllocateCommandBuffers(g.device, &ai, &g.command);
     if (r != VK_SUCCESS) { Log("vkAllocateCommandBuffers failed", r); Destroy(); return 0; }
     VkSemaphoreCreateInfo si{}; si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    if (vkCreateSemaphore(g.device, &si, nullptr, &g.acquired) != VK_SUCCESS ||
-        vkCreateSemaphore(g.device, &si, nullptr, &g.rendered) != VK_SUCCESS)
-    { Log("semaphore creation failed"); Destroy(); return 0; }
+    if (vkCreateSemaphore(g.device, &si, nullptr, &g.acquired) != VK_SUCCESS)
+    { Log("image-acquired semaphore creation failed"); Destroy(); return 0; }
     VkFenceCreateInfo fence{}; fence.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO; fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     if (vkCreateFence(g.device, &fence, nullptr, &g.fence) != VK_SUCCESS)
     { Log("fence creation failed"); Destroy(); return 0; }
@@ -364,19 +376,17 @@ extern "C" int bo1_native_vulkan_renderer_present(float red, float green, float 
     submit.waitSemaphoreCount = 1; submit.pWaitSemaphores = &g.acquired;
     submit.pWaitDstStageMask = &waitStage;
     submit.commandBufferCount = 1; submit.pCommandBuffers = &g.command;
-    submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &g.rendered;
+    submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &g.rendered[index];
     r = vkQueueSubmit(g.queue, 1, &submit, g.fence);
     if (r != VK_SUCCESS) { Log("queue submit failed", r); Destroy(); return 0; }
     VkPresentInfoKHR present{}; present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    present.waitSemaphoreCount = 1; present.pWaitSemaphores = &g.rendered;
+    present.waitSemaphoreCount = 1; present.pWaitSemaphores = &g.rendered[index];
     present.swapchainCount = 1; present.pSwapchains = &g.swapchain; present.pImageIndices = &index;
     r = vkQueuePresentKHR(g.queue, &present);
     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR && r != VK_ERROR_OUT_OF_DATE_KHR)
     { Log("queue present failed", r); Destroy(); return 0; }
-    // Keep the single-frame synchronization conservative until per-image present semaphores are introduced.
-    // This avoids re-signalling a binary semaphore before the presentation engine has consumed its wait.
-    VkResult presentIdle = vkQueueWaitIdle(g.queue);
-    if (presentIdle != VK_SUCCESS) { Log("queue idle failed", presentIdle); Destroy(); return 0; }
+    // No queue-wide idle here: the frame fence protects command-buffer reuse, while
+    // per-image present semaphores are reused only after that swapchain image is reacquired.
     if (acquiredSuboptimal || r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR)
         g.recreateSwapchain = true;
     return 1;
