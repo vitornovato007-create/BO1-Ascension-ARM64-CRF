@@ -115,73 +115,92 @@ static int Reserve(uintptr_t start, uintptr_t size)
 }
 
 // Loads the engine library into low memory and runs it. Returns the engine's exit code, or a negative number.
-static int BootRun(const char *libraryPath, int argc, char **argv, int nativeVulkanPreflight)
+// Reserve the low 32-bit-pointer address space before SDL initializes video and loads EGL/GLES
+// drivers. Those libraries can occupy/fragment low mappings; reserving first keeps the engine's
+// contiguous heap and image ranges unavailable to later loader activity.
+static uintptr_t s_engineImageBase;
+static int s_lowMemoryPrepared;
+
+static int PrepareLowMemory(void)
 {
-    struct Range ranges[64];
-    const int count = FindLowRanges(ranges, 64);
-    if (count < 0)
-    {
-        Say("cannot read /proc/self/maps (%s)", strerror(errno));
-        return -1;
-    }
-    // The heap gets the largest range. The library goes into the smallest other range that holds it, so that it
-    // does not take from the heap; without one, into the start of the heap's range.
-    int heap = -1, image = -1;
+    if (s_lowMemoryPrepared)
+        return 1;
+struct Range ranges[64];
+const int count = FindLowRanges(ranges, 64);
+if (count < 0)
+{
+    Say("cannot read /proc/self/maps (%s)", strerror(errno));
+    return -1;
+}
+// The heap gets the largest range. The library goes into the smallest other range that holds it, so that it
+// does not take from the heap; without one, into the start of the heap's range.
+int heap = -1, image = -1;
+for (int i = 0; i < count; ++i)
+{
+    Say("free below 4 GB: %p..%p (%lu MB)", (void *)ranges[i].start, (void *)ranges[i].end,
+        (unsigned long)((ranges[i].end - ranges[i].start) >> 20));
+    if (heap < 0 || ranges[i].end - ranges[i].start > ranges[heap].end - ranges[heap].start)
+        heap = i;
+}
+// The library below 2 GB when a range there holds it: the engine's own addresses (functions, globals) are
+// then positive as 32-bit integers, which is all the Linux builds ever ran with. Placed above 2 GB, the first
+// level load crashed on a sign-extended address of a global (Material_IsDefault from UI_SetLoadingScreenMaterial).
+for (int pass = 0; pass < 2 && image < 0; ++pass)
+{
     for (int i = 0; i < count; ++i)
     {
-        Say("free below 4 GB: %p..%p (%lu MB)", (void *)ranges[i].start, (void *)ranges[i].end,
-            (unsigned long)((ranges[i].end - ranges[i].start) >> 20));
-        if (heap < 0 || ranges[i].end - ranges[i].start > ranges[heap].end - ranges[heap].start)
-            heap = i;
+        const uintptr_t size = ranges[i].end - ranges[i].start;
+        const int below2G = ranges[i].start + IMAGE_RESERVE <= ((uintptr_t)1 << 31);
+        if (i != heap && size >= IMAGE_RESERVE && (pass == 1 || below2G)
+            && (image < 0 || size < ranges[image].end - ranges[image].start))
+            image = i;
     }
-    // The library below 2 GB when a range there holds it: the engine's own addresses (functions, globals) are
-    // then positive as 32-bit integers, which is all the Linux builds ever ran with. Placed above 2 GB, the first
-    // level load crashed on a sign-extended address of a global (Material_IsDefault from UI_SetLoadingScreenMaterial).
-    for (int pass = 0; pass < 2 && image < 0; ++pass)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            const uintptr_t size = ranges[i].end - ranges[i].start;
-            const int below2G = ranges[i].start + IMAGE_RESERVE <= ((uintptr_t)1 << 31);
-            if (i != heap && size >= IMAGE_RESERVE && (pass == 1 || below2G)
-                && (image < 0 || size < ranges[image].end - ranges[image].start))
-                image = i;
-        }
-    }
-    if (heap < 0)
-    {
-        Say("nothing is free below 4 GB");
+}
+if (heap < 0)
+{
+    Say("nothing is free below 4 GB");
+    return -2;
+}
+uintptr_t imageBase, heapBase = ranges[heap].start;
+const uintptr_t heapEnd = ranges[heap].end;
+if (image >= 0)
+    imageBase = ranges[image].start;
+else
+{
+    imageBase = heapBase;
+    heapBase += IMAGE_RESERVE;
+}
+if (imageBase + IMAGE_RESERVE > ((uintptr_t)1 << 31))
+    Say("warning: no room for the library below 2 GB; it loads at %p", (void *)imageBase);
+if (heapEnd <= heapBase || heapEnd - heapBase < HEAP_MINIMUM)
+{
+    Say("not enough room below 4 GB: %lu MB for the heap (%lu MB needed)",
+        (unsigned long)((heapEnd > heapBase ? heapEnd - heapBase : 0) >> 20), (unsigned long)(HEAP_MINIMUM >> 20));
+    return -2;
+}
+const uintptr_t heapSize = heapEnd - heapBase;
+if (!Reserve(imageBase, IMAGE_RESERVE) || !Reserve(heapBase, heapSize))
+    return -3;
+char number[32];
+snprintf(number, sizeof(number), "0x%lx", (unsigned long)heapBase);
+setenv("BO1_LOWMEM_BASE", number, 1);
+snprintf(number, sizeof(number), "%lu", (unsigned long)(heapSize >> 20));
+setenv("BO1_LOWMEM_MB", number, 1);
+setenv("BO1_LOWMEM_RESERVED", "1", 1);
+Say("low memory: library at %p (%lu MB reserved), heap at %p (%lu MB), page size %ld", (void *)imageBase,
+    (unsigned long)(IMAGE_RESERVE >> 20), (void *)heapBase, (unsigned long)(heapSize >> 20), sysconf(_SC_PAGESIZE));
+const uintptr_t start = imageBase;
+
+    s_engineImageBase = imageBase;
+    s_lowMemoryPrepared = 1;
+    return 1;
+}
+
+static int BootRun(const char *libraryPath, int argc, char **argv, int nativeVulkanPreflight)
+{
+    if (!PrepareLowMemory())
         return -2;
-    }
-    uintptr_t imageBase, heapBase = ranges[heap].start;
-    const uintptr_t heapEnd = ranges[heap].end;
-    if (image >= 0)
-        imageBase = ranges[image].start;
-    else
-    {
-        imageBase = heapBase;
-        heapBase += IMAGE_RESERVE;
-    }
-    if (imageBase + IMAGE_RESERVE > ((uintptr_t)1 << 31))
-        Say("warning: no room for the library below 2 GB; it loads at %p", (void *)imageBase);
-    if (heapEnd <= heapBase || heapEnd - heapBase < HEAP_MINIMUM)
-    {
-        Say("not enough room below 4 GB: %lu MB for the heap (%lu MB needed)",
-            (unsigned long)((heapEnd > heapBase ? heapEnd - heapBase : 0) >> 20), (unsigned long)(HEAP_MINIMUM >> 20));
-        return -2;
-    }
-    const uintptr_t heapSize = heapEnd - heapBase;
-    if (!Reserve(imageBase, IMAGE_RESERVE) || !Reserve(heapBase, heapSize))
-        return -3;
-    char number[32];
-    snprintf(number, sizeof(number), "0x%lx", (unsigned long)heapBase);
-    setenv("BO1_LOWMEM_BASE", number, 1);
-    snprintf(number, sizeof(number), "%lu", (unsigned long)(heapSize >> 20));
-    setenv("BO1_LOWMEM_MB", number, 1);
-    setenv("BO1_LOWMEM_RESERVED", "1", 1);
-    Say("low memory: library at %p (%lu MB reserved), heap at %p (%lu MB), page size %ld", (void *)imageBase,
-        (unsigned long)(IMAGE_RESERVE >> 20), (void *)heapBase, (unsigned long)(heapSize >> 20), sysconf(_SC_PAGESIZE));
-    const uintptr_t start = imageBase;
+    const uintptr_t start = s_engineImageBase;
 
     android_dlextinfo info;
     memset(&info, 0, sizeof(info));
@@ -315,6 +334,11 @@ int SDL_main(int argc, char **argv)
         close(log);
         setvbuf(stdout, NULL, _IOLBF, 0);
     }
+
+    // Do this before SDL_InitSubSystem(SDL_INIT_VIDEO) below: EGL/GLES driver loading can fragment
+    // the scarce address space below 4 GB needed by the engine's 32-bit-pointer heap.
+    if (!PrepareLowMemory())
+        return 1;
 
     // libbo1.so is next to this library (the app's native library directory)
     Dl_info self;
