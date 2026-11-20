@@ -43,7 +43,7 @@ public class LauncherActivity extends Activity {
         return t;
     }
 
-    private LinearLayout.Layout(LinearLayout parent, View child, int width, int height, int top) {
+    private void add(LinearLayout parent, View child, int width, int height, int top) {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(width < 0 ? width : dp(width), height < 0 ? height : dp(height));
         p.topMargin = dp(top);
         parent.addView(child, p);
@@ -90,26 +90,26 @@ public class LauncherActivity extends Activity {
         scroll.addView(root);
 
         TextView eyebrow = text("CALL OF DUTY", 14, true, Color.rgb(180, 190, 205));
-        Layout(root, eyebrow, -1, 28, 0);
+        add(root, eyebrow, -1, 28, 0);
         TextView title = text("BLACK OPS", 34, true, Color.WHITE);
-        Layout(root, title, -1, 48, 0);
+        add(root, title, -1, 48, 0);
         TextView edition = text("ANDROID PORT  •  ZOMBIES", 12, true, Color.rgb(145, 160, 180));
-        Layout(root, edition, -1, 28, 0);
+        add(root, edition, -1, 28, 0);
 
         TextView section = text("SELECIONE O RENDERIZADOR", 14, true, Color.WHITE);
         section.setGravity(Gravity.CENTER_VERTICAL);
-        Layout(root, section, -1, 42, 24);
+        add(root, section, -1, 42, 24);
 
         dxvkCard = rendererCard("DXVK Native 1.9.2", "Renderizador atual • recomendado", false, DXVK.equals(selected));
-        Layout(root, dxvkCard, -1, 92, 8);
+        add(root, dxvkCard, -1, 92, 8);
         nativeCard = rendererCard("Vulkan Nativo", "Backend próprio em desenvolvimento", true, NATIVE.equals(selected));
-        Layout(root, nativeCard, -1, 92, 12);
+        add(root, nativeCard, -1, 92, 12);
 
         status = text("", 13, false, Color.WHITE);
         status.setGravity(Gravity.CENTER);
         status.setPadding(dp(12), dp(10), dp(12), dp(10));
         status.setBackground(shape(Color.rgb(24, 29, 39), 0));
-        Layout(root, status, -1, -2, 16);
+        add(root, status, -1, -2, 16);
         updateSelection();
 
         Button start = new Button(this);
@@ -133,10 +133,10 @@ public class LauncherActivity extends Activity {
             game.putExtra("bo1.renderer", DXVK);
             startActivity(game);
         });
-        Layout(root, start, -1, 58, 20);
+        add(root, start, -1, 58, 20);
 
         TextView footer = text("A escolha é aplicada antes de carregar o motor do jogo.", 11, false, Color.rgb(125, 137, 154));
-        Layout(root, footer, -1, 34, 12);
+        add(root, footer, -1, 34, 12);
         setContentView(scroll);
     }
 }
