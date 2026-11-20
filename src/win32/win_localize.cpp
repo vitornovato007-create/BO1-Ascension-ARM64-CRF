@@ -5,6 +5,9 @@
 #include <universal/q_parse.h>
 #include <universal/q_shared.h>
 #include <cstring>
+#ifdef BO1_WEB
+#include <unistd.h>
+#endif
 
 struct// $8CB265A9D3778DFC1F2AA7A5F0192391 // sizeof=0x8
 {                                       // XREF: .data:localization/r
@@ -22,9 +25,19 @@ int Win_InitLocalization()
     int i; // [esp+8h] [ebp-8h]
     int lang; // [esp+Ch] [ebp-4h] BYREF
 
+#ifdef BO1_WEB
+    {
+        char cwd[1024] = {0};
+        fprintf(stderr, "[BO1-LOCALIZATION] Win_InitLocalization enter cwd=%s\\n",
+                getcwd(cwd, sizeof(cwd)) ? cwd : "<getcwd failed>");
+    }
+#endif
     localization.language = 0;
     localization.strings = 0;
     fp = FS_FileOpenReadText("localization.txt");
+#ifdef BO1_WEB
+    fprintf(stderr, "[BO1-LOCALIZATION] open localization.txt fp=%p\\n", (void *)fp);
+#endif
 
     if (!fp)
     {
@@ -33,6 +46,9 @@ int Win_InitLocalization()
     }
 
     size = FS_FileGetFileSize(fp);
+#ifdef BO1_WEB
+    fprintf(stderr, "[BO1-LOCALIZATION] file size=%d\\n", size);
+#endif
     if (size >= 4096
         && !Assert_MyHandler(
             "C:\\projects_pc\\cod\\codsrc\\src\\win32\\win_localize.cpp",
@@ -46,6 +62,17 @@ int Win_InitLocalization()
     localization.language = language_buffer;
     sizea = FS_FileRead(language_buffer, size, fp);
     FS_FileClose(fp);
+#ifdef BO1_WEB
+    fprintf(stderr, "[BO1-LOCALIZATION] read bytes=%d language_ptr=%p\\n", sizea, (void *)localization.language);
+    if (sizea > 0) {
+        int dump_count = sizea < 16 ? sizea : 16;
+        int dump_i;
+        fprintf(stderr, "[BO1-LOCALIZATION] first bytes:");
+        for (dump_i = 0; dump_i < dump_count; ++dump_i)
+            fprintf(stderr, " %02X", (unsigned char)language_buffer[dump_i]);
+        fprintf(stderr, "\\n");
+    }
+#endif
     if (sizea)
     {
         localization.language[sizea] = 0;
@@ -63,13 +90,24 @@ int Win_InitLocalization()
 #endif
                 localization.strings = &localization.language[i + 1];
                 SEH_GetLanguageIndexForName(localization.language, &lang);
+#ifdef BO1_WEB
+                fprintf(stderr, "[BO1-LOCALIZATION] parsed language='%s' index=%d strings=%p\\n",
+                        localization.language, lang, (void *)localization.strings);
+#endif
                 return lang;
             }
         }
+#ifdef BO1_WEB
+        fprintf(stderr, "[BO1-LOCALIZATION] no LF found; language buffer retained, strings=%p\\n",
+                (void *)localization.strings);
+#endif
         return lang;
     }
     else
     {
+#ifdef BO1_WEB
+        fprintf(stderr, "[BO1-LOCALIZATION] zero-byte read; clearing language pointer\\n");
+#endif
         localization.language = 0;
         return 0;
     }
@@ -77,6 +115,10 @@ int Win_InitLocalization()
 
 void __cdecl Win_ShutdownLocalization()
 {
+#ifdef BO1_WEB
+    fprintf(stderr, "[BO1-LOCALIZATION] Win_ShutdownLocalization language=%p strings=%p\\n",
+            (void *)localization.language, (void *)localization.strings);
+#endif
     localization.language = 0;
     localization.strings = 0;
 }
@@ -125,6 +167,10 @@ char *__cdecl Win_CopyLocalizationString(const char *string)
 
 char *__cdecl Win_GetLanguage()
 {
+#ifdef BO1_WEB
+    fprintf(stderr, "[BO1-LOCALIZATION] Win_GetLanguage language=%p strings=%p\\n",
+            (void *)localization.language, (void *)localization.strings);
+#endif
     if ( !localization.language
         && !Assert_MyHandler(
                     "C:\\projects_pc\\cod\\codsrc\\src\\win32\\win_localize.cpp",
