@@ -534,7 +534,9 @@ int SDL_main(int argc, char **argv)
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Vulkan Nativo — teste concluido",
             "O Vulkan conseguiu criar o dispositivo, a swapchain e apresentar um quadro de teste. Porem, o renderizador D3D9 que desenha a cena do BO1 ainda nao esta conectado. Por seguranca, o motor do jogo nao foi iniciado. Consulte bo1.log.", NULL);
     Say("engine returned %d", result);
-    if (result < 0)
+    // -7 and -8 are handled by the explicit Vulkan preflight dialogs above; they are
+    // diagnostic outcomes, not failures to reserve the engine's 32-bit address space.
+    if (result < 0 && result != -7 && result != -8)
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Black Ops",
             "The engine could not be loaded below 4 GB on this device. See bo1.log in the app's files folder.", NULL);
     return result;
