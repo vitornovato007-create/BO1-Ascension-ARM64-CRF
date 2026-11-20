@@ -601,6 +601,7 @@ extern "C" int bo1_native_video_native_vulkan_test_start(int width, int height)
         fprintf(stderr, "native-vk-test: SDL_Vulkan_LoadLibrary failed: %s\n", SDL_GetError());
         return 0;
     }
+    s_nativeVkTestLoaderLoaded = true;
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     SDL_ShowCursor(SDL_DISABLE);
     s_nativeVkTestWindow = SDL_CreateWindow("BO1 Native Vulkan Test",
@@ -619,7 +620,8 @@ extern "C" int bo1_native_video_native_vulkan_test_start(int width, int height)
         fprintf(stderr, "native-vk-test: renderer initialization failed\n");
         SDL_DestroyWindow(s_nativeVkTestWindow);
         s_nativeVkTestWindow = nullptr;
-        SDL_Vulkan_UnloadLibrary();
+        if (s_nativeVkTestLoaderLoaded) SDL_Vulkan_UnloadLibrary();
+        s_nativeVkTestLoaderLoaded = false;
         return 0;
     }
     s_nativeVkTestActive = true;
@@ -667,7 +669,6 @@ extern "C" void bo1_native_video_vulkan_close(void)
         if (!s_windowIsVulkan)
         {
             fprintf(stderr, "native-vk-window: close ignored: active SDL window is not Vulkan\n");
-            SDL_Vulkan_UnloadLibrary();
             return;
         }
         SDL_DestroyWindow(s_window);
