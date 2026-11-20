@@ -8,6 +8,7 @@
 // Not compiled into this file: sound, game controllers (the engine's gamepad backend is separate).
 #include "native_video.h"
 #include "native_touch.h"
+#include "native_vulkan_renderer.h"
 
 #include <SDL2/SDL.h>
 #include <vulkan/vulkan.h>
@@ -48,6 +49,8 @@ pthread_t s_videoThread;
 bool s_videoInit;
 bool s_grabbed;
 bool s_windowIsVulkan;
+SDL_Window *s_nativeVkTestWindow;
+bool s_nativeVkTestActive;
 
 bool InitVideo()
 {
@@ -570,6 +573,87 @@ extern "C" void *bo1_native_video_vulkan_window(int width, int height)
     SDL_StartTextInput();
 #endif
     return s_window;
+}
+
+// Standalone native Vulkan bring-up lifecycle. It must be started before any game/DXVK
+// window is created; it deliberately owns a different SDL_Window from the DXVK path.
+extern "C" int bo1_native_video_native_vulkan_test_start(int width, int height)
+{
+#ifndef __ANDROID__
+    (void)width;
+    (void)height;
+    fprintf(stderr, "native-vk-test: this bring-up lifecycle is Android-only\n");
+    return 0;
+#else
+    if (s_nativeVkTestActive)
+        return 1;
+    if (!InitVideo())
+        return 0;
+    if (s_window || s_nativeVkTestWindow)
+    {
+        fprintf(stderr, "native-vk-test: REFUSE start while another renderer window exists\n");
+        return 0;
+    }
+    if (SDL_Vulkan_LoadLibrary(nullptr) != 0)
+    {
+        fprintf(stderr, "native-vk-test: SDL_Vulkan_LoadLibrary failed: %s\n", SDL_GetError());
+        return 0;
+    }
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_ShowCursor(SDL_DISABLE);
+    s_nativeVkTestWindow = SDL_CreateWindow("BO1 Native Vulkan Test",
+        SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+        width > 0 ? width : 1280, height > 0 ? height : 720,
+        SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN);
+    if (!s_nativeVkTestWindow)
+    {
+        fprintf(stderr, "native-vk-test: SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Vulkan_UnloadLibrary();
+        return 0;
+    }
+    if (!bo1_native_vulkan_renderer_init(s_nativeVkTestWindow))
+    {
+        fprintf(stderr, "native-vk-test: renderer initialization failed\n");
+        SDL_DestroyWindow(s_nativeVkTestWindow);
+        s_nativeVkTestWindow = nullptr;
+        SDL_Vulkan_UnloadLibrary();
+        return 0;
+    }
+    s_nativeVkTestActive = true;
+    fprintf(stderr, "native-vk-test: STARTED (clear-pass only; no BO1 scene)\n");
+    return 1;
+#endif
+}
+
+extern "C" int bo1_native_video_native_vulkan_test_frame(void)
+{
+#ifdef __ANDROID__
+    if (!s_nativeVkTestActive || !s_nativeVkTestWindow)
+        return 0;
+    SDL_PumpEvents();
+    // A distinctive fixed color makes it clear that this frame came from the native renderer.
+    return bo1_native_vulkan_renderer_present(0.035f, 0.16f, 0.22f);
+#else
+    return 0;
+#endif
+}
+
+extern "C" void bo1_native_video_native_vulkan_test_stop(void)
+{
+#ifdef __ANDROID__
+    if (s_nativeVkTestActive)
+        bo1_native_vulkan_renderer_shutdown();
+    s_nativeVkTestActive = false;
+    if (s_nativeVkTestWindow)
+    {
+        SDL_DestroyWindow(s_nativeVkTestWindow);
+        s_nativeVkTestWindow = nullptr;
+    }
+    // The test lifecycle loaded SDL's Vulkan loader itself and is only allowed to run
+    // before another renderer window exists, so it can safely release that loader here.
+    SDL_Vulkan_UnloadLibrary();
+    fprintf(stderr, "native-vk-test: STOPPED\n");
+#endif
 }
 
 extern "C" void bo1_native_video_vulkan_close(void)
