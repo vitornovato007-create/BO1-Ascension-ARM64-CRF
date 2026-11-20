@@ -254,7 +254,7 @@ int main(int argc, char **argv)
         mmap((void *)0x12c00000, (size_t)0x40000000, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED, -1, 0);
         mmap((void *)0x6f000000, (size_t)0x08000000, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED, -1, 0);
     }
-    return BootRun(argv[1], argc - 1, argv + 1);
+    return BootRun(argv[1], argc - 1, argv + 1, 0);
 }
 
 #else
