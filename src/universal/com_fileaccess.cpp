@@ -24,35 +24,31 @@ unsigned int __cdecl FS_FileWrite(const void *ptr, unsigned int len, FILE *strea
 
 FILE *__cdecl FileWrapper_Open(const char *ospath, const char *mode)
 {
-    int *v3; // eax
-    const char *v4; // eax
-    const char *v5; // eax
+    int *open_errno; // eax
     FILE *file; // [esp+0h] [ebp-4h]
 
     *_errno() = 0;
     file = fopen(ospath, mode);
     if (file != NULL)
         return file;
-    v3 = _errno();
+
+    open_errno = _errno();
 #ifdef BO1_WEB
+    // A missing candidate is normal while the filesystem searches its
+    // mounted paths. Keep this diagnostic focused on the file seen in the
+    // current Android startup failure instead of flooding the log.
+    if (ospath != NULL && strstr(ospath, "fileSysCheck.cfg") != NULL)
     {
-        char cwd[1024] = {0};
         fprintf(stderr,
-                "[BO1-FILE] fopen failed path='%s' mode='%s' errno=%d (%s) cwd='%s'\\n",
-                ospath ? ospath : "<null>", mode ? mode : "<null>", *v3,
-                strerror(*v3), getcwd(cwd, sizeof(cwd)) ? cwd : "<getcwd failed>");
+                "[BO1-FILE] search candidate missing path='%s' mode='%s' errno=%d (%s)\\n",
+                ospath, mode ? mode : "<null>", *open_errno,
+                strerror(*open_errno));
         fflush(stderr);
     }
 #endif
-    v4 = strerror(*v3);
-    v5 = va("Couldn't open file: %s %s", ospath, v4);
-    if ( !Assert_MyHandler(
-                    "c:\\projects_pc\\cod\\codsrc\\src\\qcommon\\../universal/com_files_wrapper_stdio.h",
-                    24,
-                    0,
-                    v5) )
-        __debugbreak();
-    return 0;
+
+    // Do not assert here: callers must be allowed to try the next search path.
+    return NULL;
 }
 
 FILE *__cdecl FS_FileOpenReadBinary(const char *filename)
