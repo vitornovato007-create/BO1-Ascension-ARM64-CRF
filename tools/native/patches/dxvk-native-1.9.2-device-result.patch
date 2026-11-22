@@ -1,8 +1,7 @@
 diff --git a/src/dxvk/dxvk_adapter.cpp b/src/dxvk/dxvk_adapter.cpp
-index 0000000..0000000 100644
 --- a/src/dxvk/dxvk_adapter.cpp
 +++ b/src/dxvk/dxvk_adapter.cpp
-@@ -475,6 +475,9 @@
+@@ -1,7 +1,10 @@
      }
  
 -    if (vr != VK_SUCCESS)
