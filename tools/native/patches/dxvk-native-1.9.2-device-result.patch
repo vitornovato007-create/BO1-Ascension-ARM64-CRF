@@ -1,0 +1,15 @@
+diff --git a/src/dxvk/dxvk_adapter.cpp b/src/dxvk/dxvk_adapter.cpp
+index 0000000..0000000 100644
+--- a/src/dxvk/dxvk_adapter.cpp
++++ b/src/dxvk/dxvk_adapter.cpp
+@@ -475,6 +475,9 @@
+     }
+ 
+-    if (vr != VK_SUCCESS)
++    if (vr != VK_SUCCESS) {
++      Logger::err(str::format("DxvkAdapter: vkCreateDevice failed with VkResult ",
++        static_cast<int32_t>(vr)));
+       throw DxvkError("DxvkAdapter: Failed to create device");
++    }
+     
+     Rc<DxvkDevice> result = new DxvkDevice(instance, this,
