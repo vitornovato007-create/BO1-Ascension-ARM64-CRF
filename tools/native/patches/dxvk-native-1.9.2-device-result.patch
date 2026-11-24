@@ -1,7 +1,10 @@
 diff --git a/src/dxvk/dxvk_adapter.cpp b/src/dxvk/dxvk_adapter.cpp
 --- a/src/dxvk/dxvk_adapter.cpp
 +++ b/src/dxvk/dxvk_adapter.cpp
-@@ -1,2 +1,5 @@
+@@ -469,6 +469,9 @@
+       vr = m_vki->vkCreateDevice(m_handle, &info, nullptr, &device);
+     }
+
 -    if (vr != VK_SUCCESS)
 +    if (vr != VK_SUCCESS) {
 +      Logger::err(str::format("DxvkAdapter: vkCreateDevice failed with VkResult ",
