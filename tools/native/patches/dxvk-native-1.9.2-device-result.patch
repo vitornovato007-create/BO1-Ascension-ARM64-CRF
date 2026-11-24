@@ -1,7 +1,7 @@
 diff --git a/src/dxvk/dxvk_adapter.cpp b/src/dxvk/dxvk_adapter.cpp
 --- a/src/dxvk/dxvk_adapter.cpp
 +++ b/src/dxvk/dxvk_adapter.cpp
-@@ -469,6 +469,9 @@
+@@ -469,4 +469,7 @@
        vr = m_vki->vkCreateDevice(m_handle, &info, nullptr, &device);
      }
 
