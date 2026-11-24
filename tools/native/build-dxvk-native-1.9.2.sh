@@ -22,15 +22,10 @@ if [ ! -d "$D/src/.git" ]; then
 fi
 git -C "$D/src" fetch --depth 1 origin "$COMMIT" || exit 1
 git -C "$D/src" checkout --detach "$COMMIT" || exit 1
-# Apply a local diagnostic-only patch: report the VkResult hidden by DXVK's generic device-creation error.
+# Apply the diagnostic with Python instead of git apply. This avoids fragile patch
+# context matching and fails immediately if the pinned upstream source differs.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DXVK_DIAG_PATCH="$SCRIPT_DIR/patches/dxvk-native-1.9.2-device-result.patch"
-[ -f "$DXVK_DIAG_PATCH" ] || { echo "missing DXVK diagnostic patch: $DXVK_DIAG_PATCH"; exit 1; }
-git -C "$D/src" apply "$DXVK_DIAG_PATCH" || {
-  echo "failed to apply DXVK Native 1.9.2 diagnostic patch"
-  exit 1
-}
-echo "Applied DXVK device-creation VkResult diagnostic"
+python3 "$SCRIPT_DIR/apply-dxvk-device-result.py" "$D/src"
 # DXVK Native keeps the Direct3D headers in a required Git submodule.
 # A plain clone does not populate it, which leaves d3d9.h missing at compile time.
 git -C "$D/src" submodule sync -- include/native/directx
